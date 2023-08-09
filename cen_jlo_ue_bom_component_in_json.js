@@ -4,7 +4,7 @@
 /= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =\
  * Purpose: This script is used to take BOM Component into Json field in PO.
  * VER  DATE           AUTHOR               		CHANGES
- * 1.0  Jul 28, 2023   Centric Consulting(Aman)   	Initial Version
+ * 1.0  Aug 7, 2023   Centric Consulting(Aman)   	Initial Version
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
 define(['N/record'], function (record) {
