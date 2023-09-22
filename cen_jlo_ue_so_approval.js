@@ -29,7 +29,7 @@ define(['N/search', 'N/record', 'N/runtime'],
                     var mode = context.type;
                     var currentRecord = context.newRecord;
                     var customer = currentRecord.getValue({ fieldId: "entity" });
-                    if (mode == 'create' || mode == 'edit') {
+                    if (mode == 'create') {
                         log.debug({ title: 'Mode', details: mode });
                         var soIntId = currentRecord.getValue({ fieldId: "id" });
                         var customer = currentRecord.getValue({ fieldId: "entity" });
@@ -42,13 +42,10 @@ define(['N/search', 'N/record', 'N/runtime'],
                             columns: ['isperson']
                         });
                         var isPerson = fieldLookUp.isperson;
-                        if (isPerson == true) {
-                            return;
-                        }
                         var soRecord = record.load({
                             type: record.Type.SALES_ORDER,
                             id: soIntId,
-                            isDynamic: false
+                            isDynamic: true
                         });
                         var itemCount = soRecord.getLineCount({ sublistId: 'item' });
                         log.debug({ title: 'Item Count', details: itemCount });
@@ -57,6 +54,10 @@ define(['N/search', 'N/record', 'N/runtime'],
                             var SO_Item = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
                             var SO_Item_type = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'itemtype', line: i });
                             var SO_Item_Quantity = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
+                            var SO_Item_Sopify_Org_prize = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_orgnl_prc', line: i });
+
+
+                            log.debug('SO_Item_Sopify_Org_prize', SO_Item_Sopify_Org_prize);
 
                             //check for avaiable quantity
                             var availableCount;
@@ -68,27 +69,53 @@ define(['N/search', 'N/record', 'N/runtime'],
                             }
                             if (availableCount >= SO_Item_Quantity) {
                                 flag = true;
+                                log.debug('title1', flag);
                             } else {
                                 flag = false;
+                                log.debug('title2', flag);
                             }
-                            if (flag == false) { break; }
+                            //        if (flag == false) { break; }
+
+                            log.debug({ title: 'flag: ', details: flag });
+                            if (flag == false && isPerson == false) {
+                                //      if (SO_Item_Sopify_Org_prize == null ) {
+                                //          soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
+
+                                log.debug('title3', flag);
+                                soRecord.setValue({ fieldId: 'orderstatus', value: "A" });
+                                soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
+                                soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
+                                //      }  
+                            }
+                            else
+                                if ((flag == true && isPerson == true)) {
+                                    if (SO_Item_Sopify_Org_prize == '') {
+                                        soRecord.setValue({ fieldId: 'orderstatus', value: "A" });
+                                        soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
+                                        soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
+                                        soRecord.setValue({ fieldId: 'memo', value: 'TEST222' });
+                                        var custbody_so_approval1 = soRecord.getValue({ fieldId: 'custbody_so_approval' });
+                                        log.debug('custbody_so_approval', custbody_so_approval1);
+                                        soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
+                                        log.debug('title4', flag);
+                                        log.debug('SO_Item_Sopify_Org_prize new 0', SO_Item_Sopify_Org_prize);
+                                        break;
+                                    }
+                                    else {
+                                        soRecord.setValue({ fieldId: 'orderstatus', value: "B" });
+                                        soRecord.setValue({ fieldId: 'status', value: "Pending Fulfillment" });
+                                        log.debug('SO_Item_Sopify_Org_prize new 1', SO_Item_Sopify_Org_prize);
+                                    }
+
+                                }
+
                         }
-                        log.debug({ title: 'flag: ', details: flag });
-                        if (flag == false) {
-                            soRecord.setValue({ fieldId: 'orderstatus', value: "A" });
-                            soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
-                            soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
-                        }
-                        if (flag == true) {
-                            soRecord.setValue({ fieldId: 'orderstatus', value: "B" });
-                            soRecord.setValue({ fieldId: 'status', value: "Pending Fulfillment" });
-                        }
-                        soRecord.save({
-                            enableSourcing: true,
-                            ignoreMandatoryFields: true
-                        });
                     }
                 }
+                soRecord.save({
+                    enableSourcing: true,
+                    ignoreMandatoryFields: true
+                });
             } catch (e) {
                 log.debug({ title: 'Error on after Submit: ', details: e });
             }
