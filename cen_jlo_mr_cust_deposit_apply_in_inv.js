@@ -18,11 +18,11 @@ define(['N/search', 'N/record'],
                         "AND", ["status", "anyof", "CustDep:A"],
                         "AND", ["mainline", "is", "T"],
                         "AND", ["createdfrom.custbody_celigo_etail_order_id", "isnotempty", ""]
-                        , "AND", ["internalid", "anyof", "17220"]
+                        //, "AND", ["internalid", "anyof", "17220"] // for testing
                     ],
                 columns:
                     [
-                        "internalid", "tranid", "entity", "createdfrom", "amount",
+                        "internalid", "amount",
                         search.createColumn({ name: "custbody_celigo_etail_order_id", join: "createdFrom" })
                     ]
             });
@@ -32,9 +32,8 @@ define(['N/search', 'N/record'],
             var jsonobj = JSON.parse(context.value);
             log.debug("Json : ", jsonobj);
             var custDepositId = jsonobj["values"]["internalid"]["value"];
-            var customerId = jsonobj["values"]["entity"]["value"];
             var soptifyOrderId = jsonobj["values"]["custbody_celigo_etail_order_id.createdFrom"];
-            var custDepositBalance = jsonobj["values"]["amount"]; 
+            var custDepositBalance = jsonobj["values"]["amount"];
             log.debug("Details 1", "custDepositId: " + custDepositId + ", soptifyOrderId: " + soptifyOrderId + ", custDepositBalance: " + custDepositBalance);
 
             // Invoice to apply
@@ -51,10 +50,15 @@ define(['N/search', 'N/record'],
                 var numLines = createRecord.getLineCount({ sublistId: 'apply' });
                 log.debug("numLines : ", numLines);
                 for (i = 0; i < numLines; i++) {
-                    createRecord.selectLine({ sublistId: "apply", line: i });
-                    createRecord.setCurrentSublistValue({ sublistId: 'apply', fieldId: 'apply', value: true });
-                    createRecord.setCurrentSublistValue({ sublistId: 'apply', fieldId: 'refnum', value: invoiceId });
-                    createRecord.setCurrentSublistValue({ sublistId: 'apply', fieldId: 'amount', value: custDepositBalance });
+                    // look for invoice
+                    var openInvoice = createRecord.getSublistValue({ sublistId: 'apply', fieldId: 'internalid', line: i });
+                    if (openInvoice == invoiceId) {
+                        // Applying customer deposit to invoice
+                        createRecord.selectLine({ sublistId: "apply", line: i });
+                        createRecord.setCurrentSublistValue({ sublistId: 'apply', fieldId: 'apply', value: true });
+                        //createRecord.setCurrentSublistValue({ sublistId: 'apply', fieldId: 'refnum', value: invoiceId });
+                        createRecord.setCurrentSublistValue({ sublistId: 'apply', fieldId: 'amount', value: custDepositBalance });
+                    }
                 }
 
                 // Save the deposit record with applied payments
