@@ -4,7 +4,8 @@
 /= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =\
  * Purpose:  Send email for Effort Supervisor Group when record status update to open/close.
  * VER  DATE            AUTHOR               	 	 CHANGES
- * 1.0  July 14, 2023   Centric Consulting(Aman)     Initial Version
+ * 1.0  July 14, 2023   Centric Consulting(Pradeep)     Initial Version
+ * 1.1  Oct 12, 2023    Centric Consulting(Pradeep)     Update script for new requirements
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
 define(['N/search', 'N/record', 'N/runtime'],
@@ -28,87 +29,86 @@ define(['N/search', 'N/record', 'N/runtime'],
                 if (executionContext == 'USERINTERFACE') {
                     var mode = context.type;
                     var currentRecord = context.newRecord;
-                    var customer = currentRecord.getValue({ fieldId: "entity" });
-                    if (mode == 'create') {
+                    if (mode == 'create' || mode == 'edit') {
                         log.debug({ title: 'Mode', details: mode });
                         var soIntId = currentRecord.getValue({ fieldId: "id" });
-                        var customer = currentRecord.getValue({ fieldId: "entity" });
-                        log.debug({ title: 'so Detail', details: "int ID: " + soIntId + ", Cust: " + customer });
+                        var orderType = currentRecord.getValue({ fieldId: "custbody_jlb_order_type" });
+                        log.debug({ title: 'SO Detail', details: "Int ID: " + soIntId + ", Order Type: " + orderType });
 
-                        // checking for B2B Customer
-                        var fieldLookUp = search.lookupFields({
-                            type: search.Type.CUSTOMER,
-                            id: customer,
-                            columns: ['isperson']
-                        });
-                        var isPerson = fieldLookUp.isperson;
-                        var soRecord = record.load({
-                            type: record.Type.SALES_ORDER,
-                            id: soIntId,
-                            isDynamic: true
-                        });
-                        var itemCount = soRecord.getLineCount({ sublistId: 'item' });
-                        log.debug({ title: 'Item Count', details: itemCount });
-                        var flag;
-                        for (var i = 0; i < itemCount; i++) {
-                            var SO_Item = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
-                            var SO_Item_type = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'itemtype', line: i });
-                            var SO_Item_Quantity = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
-                            var SO_Item_Sopify_Org_prize = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_orgnl_prc', line: i });
+                        // IF order type is B2B Customer
+                        if (orderType == 2) {
+                            record.submitFields({
+                                type: record.Type.SALES_ORDER,
+                                id: soIntId,
+                                values: {
+                                    'orderstatus': "A",
+                                    'custbody_so_approval': true
+                                },
+                                options: { enableSourcing: false, ignoreMandatoryFields: true }
+                            });
+                        }
 
+                        // IF order type is B2C/DTC Customer
+                        if (orderType == 1) {
+                            var soRecord = record.load({
+                                type: record.Type.SALES_ORDER,
+                                id: soIntId,
+                                isDynamic: true
+                            });
+                            var itemCount = soRecord.getLineCount({ sublistId: 'item' });
+                            log.debug({ title: 'Item Count', details: itemCount });
+                            var Final_result;
 
-                            log.debug('SO_Item_Sopify_Org_prize', SO_Item_Sopify_Org_prize);
+                            for (var i = 0; i < itemCount; i++) {
+                                var SO_Item = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
+                                var SO_Item_type = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'itemtype', line: i });
+                                var SO_Item_Quantity = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
+                                var SO_Item_Sub_status = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_subscrptn_flg', line: i });
+                                var SO_Item_Sopify_Org_prize = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_orgnl_prc', line: i });
+                                var First_validation, Second_validation;
 
-                            //check for avaiable quantity
-                            var availableCount;
-                            if (SO_Item_type == "Kit") {
-                                availableCount = checkAvailableKitItemCount(SO_Item);
-                            }
-                            if (SO_Item_type == "InvtPart") {
-                                availableCount = checkAvailableInvItemCount(SO_Item);
-                            }
-                            if (availableCount >= SO_Item_Quantity) {
-                                flag = true;
-                                log.debug('title1', flag);
-                            } else {
-                                flag = false;
-                                log.debug('title2', flag);
-                            }
-                            //        if (flag == false) { break; }
-
-                            log.debug({ title: 'flag: ', details: flag });
-                            if (flag == false && isPerson == false) {
-                                //      if (SO_Item_Sopify_Org_prize == null ) {
-                                //          soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
-
-                                log.debug('title3', flag);
-                                soRecord.setValue({ fieldId: 'orderstatus', value: "A" });
-                                soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
-                                soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
-                                //      }  
-                            }
-                            else
-                                if ((flag == true && isPerson == true)) {
-                                    if (SO_Item_Sopify_Org_prize == '') {
-                                        soRecord.setValue({ fieldId: 'orderstatus', value: "A" });
-                                        soRecord.setValue({ fieldId: 'status', value: "Pending Approval" });
-                                        soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
-                                        soRecord.setValue({ fieldId: 'memo', value: 'TEST222' });
-                                        var custbody_so_approval1 = soRecord.getValue({ fieldId: 'custbody_so_approval' });
-                                        log.debug('custbody_so_approval', custbody_so_approval1);
-                                        soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
-                                        log.debug('title4', flag);
-                                        log.debug('SO_Item_Sopify_Org_prize new 0', SO_Item_Sopify_Org_prize);
-                                        break;
-                                    }
-                                    else {
-                                        soRecord.setValue({ fieldId: 'orderstatus', value: "B" });
-                                        soRecord.setValue({ fieldId: 'status', value: "Pending Fulfillment" });
-                                        log.debug('SO_Item_Sopify_Org_prize new 1', SO_Item_Sopify_Org_prize);
-                                    }
-
+                                // First validation
+                                if ((SO_Item_Sub_status == 'Y') && !SO_Item_Sopify_Org_prize) {
+                                    First_validation = false; // first validation failed
+                                } else {
+                                    First_validation = true; // first validation passed
                                 }
 
+                                //check for avaiable quantity
+                                var availableCount;
+                                if (SO_Item_type == "Kit") {
+                                    availableCount = checkAvailableKitItemCount(SO_Item);
+                                }
+                                if (SO_Item_type == "InvtPart") {
+                                    availableCount = checkAvailableInvItemCount(SO_Item);
+                                }
+                                if (availableCount >= SO_Item_Quantity) {
+                                    Second_validation = true; // Quantity validation passed
+                                    log.debug('Second_validation', flag);
+                                } else {
+                                    Second_validation = false; // Quantity validation failed
+                                    log.debug('Second_validation', flag);
+                                }
+
+                                if (First_validation == true && Second_validation == true) {
+                                    Final_result = "pass";
+                                } else {
+                                    Final_result = "fail";
+                                    break;
+                                }
+                            }
+                            if (Final_result == "pass") {
+                                soRecord.setValue({ fieldId: 'orderstatus', value: "B" }); // pending fulfillment
+                                soRecord.setValue({ fieldId: 'custbody_so_approval', value: false });
+                            }
+                            if (Final_result == "fail") {
+                                soRecord.setValue({ fieldId: 'orderstatus', value: "A" }); // pending approval
+                                soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
+                            }
+                            soRecord.save({
+                                enableSourcing: true,
+                                ignoreMandatoryFields: true
+                            });
                         }
                     }
                 }
