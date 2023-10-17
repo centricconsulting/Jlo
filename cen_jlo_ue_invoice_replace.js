@@ -48,9 +48,7 @@ define(['N/record', 'N/runtime'], function (record, runtime) {
             currentRecord.setValue({ fieldId: 'discountrate', value: discountRate });
             currentRecord.setValue({ fieldId: 'custbody_replacement_order', value: true });
         }
-        else {
-            currentRecord.setValue({ fieldId: 'custbody_replacement_order', value: false });
-        }
+
     }
 
 
