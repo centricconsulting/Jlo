@@ -17,13 +17,14 @@ define(['N/search', 'N/record'],
                         ["type", "anyof", "CustDep"],
                         "AND", ["status", "anyof", "CustDep:A"],
                         "AND", ["mainline", "is", "T"],
-                        "AND", ["createdfrom.custbody_celigo_etail_order_id", "isnotempty", ""]
-                        //, "AND", ["internalid", "anyof", "17220"] // for testing
+                        "AND", [["createdfrom.custbody_celigo_etail_order_id", "isnotempty", ""], "OR", ["createdfrom.custbody_shopify_order_id", "isnotempty", ""]]
+                        , "AND", ["internalid", "anyof", "38139","38141"] // for testing
                     ],
                 columns:
                     [
                         "internalid", "amount",
-                        search.createColumn({ name: "custbody_celigo_etail_order_id", join: "createdFrom" })
+                        search.createColumn({ name: "custbody_celigo_etail_order_id", join: "createdFrom" }),
+                        search.createColumn({ name: "custbody_shopify_order_id", join: "createdFrom" })
                     ]
             });
             return customerdepositSearchObj;
@@ -32,12 +33,17 @@ define(['N/search', 'N/record'],
             var jsonobj = JSON.parse(context.value);
             log.debug("Json : ", jsonobj);
             var custDepositId = jsonobj["values"]["internalid"]["value"];
-            var soptifyOrderId = jsonobj["values"]["custbody_celigo_etail_order_id.createdFrom"];
+            var eTailOrderId = jsonobj["values"]["custbody_celigo_etail_order_id.createdFrom"];
+            var soptifyOrderId = jsonobj["values"]["custbody_shopify_order_id.createdFrom"];
             var custDepositBalance = jsonobj["values"]["amount"];
-            log.debug("Details 1", "custDepositId: " + custDepositId + ", soptifyOrderId: " + soptifyOrderId + ", custDepositBalance: " + custDepositBalance);
+            log.debug("Details 1", "custDepositId: " + custDepositId + ", eTailOrderId: " + eTailOrderId + ", soptifyOrderId: " + soptifyOrderId + ", custDepositBalance: " + custDepositBalance);
+
+            if (!eTailOrderId && soptifyOrderId) {
+                eTailOrderId = soptifyOrderId;
+            }
 
             // Invoice to apply
-            var invoiceId = findInvoice(soptifyOrderId);
+            var invoiceId = findInvoice(eTailOrderId);
             log.debug("invoiceId : ", invoiceId);
             // Apply customer deposit to Invoice
             if (invoiceId && custDepositId) {
@@ -77,14 +83,15 @@ define(['N/search', 'N/record'],
             );
         }
 
-        function findInvoice(soptifyOrderId) {
-            var invoiceSearchObj = search.create({
+        function findInvoice(eTailOrderId) {
+            var invoiceSearchObj;
+            invoiceSearchObj = search.create({
                 type: "invoice",
                 filters:
                     [
                         ["type", "anyof", "CustInvc"],
                         "AND", ["mainline", "is", "T"],
-                        "AND", ["custbody_celigo_etail_order_id", "is", soptifyOrderId],
+                        "AND", [["custbody_celigo_etail_order_id", "is", eTailOrderId], "OR", ["custbody_shopify_order_id", "is", eTailOrderId]],
                         "AND", ["status", "anyof", "CustInvc:A"]
                     ],
                 columns:
@@ -95,10 +102,12 @@ define(['N/search', 'N/record'],
             var searchResultCount = invoiceSearchObj.runPaged().count;
             log.debug("invoiceSearchObj result count", searchResultCount);
             var invTran;
-            invoiceSearchObj.run().each(function (result) {
-                invTran = result.getValue({ name: "internalid" });
-                return true;
-            });
+            if (searchResultCount > 0) {
+                invoiceSearchObj.run().each(function (result) {
+                    invTran = result.getValue({ name: "internalid" });
+                    return true;
+                });
+            }
             return invTran;
         }
 
