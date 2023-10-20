@@ -10,11 +10,8 @@
 	
  * For B2C users:
  * 	- if any line is a subscription and does not have a original price, then force an approval
- * 	- (remove) if there is not enough quantity for any line, then force approval
- *  - (remove) For B2C users if there is enough quantity for all lines, auto approve
- * 
- * Modify to check count by location: https://suiteanswers.custhelp.com/app/answers/detail/a_id/74934/loc/en_US
- * Kit components: https://suiteanswers.custhelp.com/app/answers/detail/a_id/46201/loc/en_US
+ * 	- if there is not enough quantity for any line, then force approval
+ *  - For B2C users if there is enough quantity for all lines, auto approve
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
 define(['N/search', 'N/record', 'N/runtime'],
