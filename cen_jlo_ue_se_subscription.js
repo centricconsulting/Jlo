@@ -74,6 +74,9 @@ define(['N/record', 'N/search'], function (record, search) {
                 line: i
             });
 
+            
+
+
 
             log.debug('Processing line ' + (i + 1), 'isKitOrAssembly: ' + isKitOrAssembly + ', hasInstallmentFlag: ' + hasInstallmentFlag + ', hasOriginalPrice: ' + hasOriginalPrice + ', isclosed: ' + isclosed, 'taxCode : ' + taxCode);
 
@@ -95,12 +98,12 @@ define(['N/record', 'N/search'], function (record, search) {
 
                 // Close the original line
                 
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: false,
-                    line: i,
-                    value: true
-                });
+                // newRecord.setSublistValue({
+                //     sublistId: 'item',
+                //     fieldId: false,
+                //     line: i,
+                //     value: true
+                // });
 
                 // Calculate the "Amount" as Quantity * Rate
                 var quantity = newRecord.getSublistValue({
@@ -122,16 +125,21 @@ define(['N/record', 'N/search'], function (record, search) {
 
                 var amount = quantity * rate;
 
-
                 log.debug('Quantity: ' + quantity);
 
                 log.debug('Rate: ' + rate);
                 log.debug('Calculated Amount: ' + amount);
 
+                var taxrate1 = newRecord.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'taxrate1',
+                    line: i
+                });
+
                 newRecord.setSublistValue({
                     sublistId: 'item',
                     fieldId: 'isclosed',
-                    line: i, // Use newLine here instead of i
+                    line: i, 
                     value: true
                 });
 
@@ -189,6 +197,13 @@ define(['N/record', 'N/search'], function (record, search) {
                     fieldId: 'quantity',
                     line: j, // Use newLine here instead of i
                     value: quantity
+                });
+
+                newRecord.setSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'taxrate1',
+                    line: j, // Use newLine here instead of i
+                    value: taxrate1
                 });
 
                 log.debug('Processing line ' + (j), 'New Line created at index: ' + newLine);
