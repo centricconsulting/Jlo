@@ -74,6 +74,12 @@ define(['N/record', 'N/search'], function (record, search) {
                 line: i
             });
 
+            var lineClass = newRecord.getSublistValue({
+                sublistId: 'item',
+                fieldId: 'class',
+                line: i
+            });            
+
             
 
 
@@ -191,6 +197,13 @@ define(['N/record', 'N/search'], function (record, search) {
                     line: j, // Use newLine here instead of i
                     value: location
                 });
+
+                newRecord.setSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'class',
+                    line: j, // Use newLine here instead of i
+                    value: lineClass
+                });                
 
                 newRecord.setSublistValue({
                     sublistId: 'item',
