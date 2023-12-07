@@ -30,6 +30,9 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url'],
             // return customerdepositSearchObj;
 
             log.audit('<<< START >>>', 'Start of script execution');
+            var arAcct = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_aracct'});
+            log.debug("ar acct",arAcct);
+
             //Search custom record vendor bill line where billable = Y and a client is assigned
     
             // it would be nice to eliminate any duplicates by making this distinct
@@ -86,6 +89,10 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url'],
         function reduce(context) {
             log.debug("reduce entered");
             log.debug("context",context.key);
+
+            var arAcct = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_aracct'});
+            log.debug("ar acct",arAcct);
+
             //log.debug("VALUE",context.values);
 
             for (var v in context.values) {
@@ -129,6 +136,9 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url'],
                         fromId: parsedValue.deposit_id,
                         toType: record.Type.DEPOSIT_APPLICATION,
                         isDynamic: true,
+                        defaultValues: {
+                            aracct: arAcct
+                        } 
                     });
 
                     var numLines = createRecord.getLineCount({ sublistId: 'apply' });
