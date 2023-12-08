@@ -80,7 +80,17 @@ define(['N/record', 'N/search'], function (record, search) {
                 line: i
             });            
 
-            
+             var shpfyPrc = newRecord.getSublistValue({
+                sublistId: 'item',
+                fieldId: 'custcolcustcol_shpfy_inst_prc',
+                line: i
+            });      
+
+             var shpfyInstmts = newRecord.getSublistValue({
+                sublistId: 'item',
+                fieldId: 'custcolcustcol_shpfy_num_instlmts',
+                line: i
+            });      
 
 
 
@@ -212,6 +222,20 @@ define(['N/record', 'N/search'], function (record, search) {
                     value: quantity
                 });
 
+                 newRecord.setSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'custcolcustcol_shpfy_inst_prc',
+                    line: j, // Use newLine here instead of i
+                    value: shpfyPrc
+                });
+
+                 newRecord.setSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'custcolcustcol_shpfy_num_instlmts',
+                    line: j, // Use newLine here instead of i
+                    value: shpfyInstmts
+                });
+
                 newRecord.setSublistValue({
                     sublistId: 'item',
                     fieldId: 'taxrate1',
@@ -233,6 +257,10 @@ define(['N/record', 'N/search'], function (record, search) {
             value: jloLocation
         });
 
+         newRecord.setValue({
+            fieldId: 'custbody_cen_jlo_instal_ord',
+            value: true
+        });
 
         // Save the Sales Order record
         var savedOrderId = newRecord.save();
