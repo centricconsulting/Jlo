@@ -5,8 +5,16 @@
  * Purpose: This script is to copy a new line from existing line.
  * VER  DATE           AUTHOR               		    CHANGES    
  * 1.0  Aug 24, 2023   Centric Consulting(Pradeep)   	Initial Version
+ * 
+ * If any line on the sales order has 'custcol_shpfy_subscrptn_flg' = 'Y', then set the 
+ * 'custbody_cen_jlo_instal_ord' field at the Sales Order header level. This allows 
+ * 2 things to happen: 1) we can pick up the sales order to be invoiced via a custom
+ * process and 2) we can filter the order to be skipped from the standard "Process 
+ * Billing Operations"
+ * 
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
-define(['N/record', 'N/search'], function (record, search) {
+
+define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime) {
 
 
 
@@ -14,6 +22,7 @@ define(['N/record', 'N/search'], function (record, search) {
         if (context.type !== context.UserEventType.CREATE)
             return;
 
+        var digitalPaymentItem = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_digital_pmt'});
         var newRecord = context.newRecord;
         var salesOrderId = context.newRecord.id;
         // Load the Sales Order record 
@@ -23,6 +32,9 @@ define(['N/record', 'N/search'], function (record, search) {
         var jloLocation = newRecord.getValue({
             fieldId: 'location'
         });
+
+        var setInstallOrderFlag = false;
+        var setDigitalPmtFlag = false;
 
         for (var i = 0; i < lineCount; i++) {
             log.debug('lineCount1', lineCount + ' , i: ' + i);
@@ -96,6 +108,10 @@ define(['N/record', 'N/search'], function (record, search) {
 
             log.debug('Processing line ' + (i + 1), 'isKitOrAssembly: ' + isKitOrAssembly + ', hasInstallmentFlag: ' + hasInstallmentFlag + ', hasOriginalPrice: ' + hasOriginalPrice + ', isclosed: ' + isclosed, 'taxCode : ' + taxCode);
 
+            if (itemId == digitalPaymentItem) {
+                log.debug("digital payment item","true");
+                setDigitalPmtFlag = true;
+            }
 
             if (
                 (isKitOrAssembly === 'Kit' || isKitOrAssembly === 'Assembly') &&
@@ -103,6 +119,10 @@ define(['N/record', 'N/search'], function (record, search) {
                 hasOriginalPrice !== null &&
                 !isclosed
             ) {
+
+                // set this flag to true so that the field can be set at the header level
+                setInstallOrderFlag = true;
+
                 // Perform the necessary actions based on criteria
                 var closedLineId = newRecord.getSublistValue({
                     sublistId: 'item',
@@ -257,9 +277,15 @@ define(['N/record', 'N/search'], function (record, search) {
             value: jloLocation
         });
 
-         newRecord.setValue({
+        // if any line was a subscription line, flag the Sales Order at the header level.
+        newRecord.setValue({
             fieldId: 'custbody_cen_jlo_instal_ord',
-            value: true
+            value: setInstallOrderFlag
+        });
+
+        newRecord.setValue({
+            fieldId: 'custbody_cen_jlo_digital_pmt_ord',
+            value: setDigitalPmtFlag
         });
 
         // Save the Sales Order record
