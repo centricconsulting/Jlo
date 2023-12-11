@@ -7,8 +7,8 @@
  * 1.0  Sep 19, 2023   Centric Consulting(Pradeep)   	Initial Version
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
-define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url'],
-    function (search, record, runtime, email, url) {
+define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
+    function (search, record, runtime, email, url, query) {
         function getInputData() {
             // var customerdepositSearchObj = search.create({
             //     type: "customerdeposit",
@@ -76,14 +76,52 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url'],
         function map(context) {
             //log.debug("map entered");
             var result = JSON.parse(context.value);
-            log.debug("map:context",result.values[0]); 
-            context.write({
-                key: result.values[0], // sales order internal id
-                value: { deposit_id: result.values[7], // deposit internal id
-                         shopify_order_id: result.values[2], // shopify original order id
-                         deposit_balance: result.values[8] // deposit amount
-                }
+
+            var installmentItem = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_install_item'});
+            var shipmentItem = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_ship_item'});
+            log.debug("installment item",installmentItem);
+            log.debug("sales order id",result.values[0]);
+
+            var suiteQL = `
+                select transaction, 
+                    item, 
+                    linesequencenumber 
+                from transactionline tl
+                where tl.transaction = ?
+                    and item != ?  -- INS001
+                    and mainline = 'F'
+                    and taxline = 'F'
+                    and itemtype != 'Discount'
+                    and item != ? -- Shopify Shipping Cost 7770
+            `; 
+
+            var soLinesList = query.runSuiteQL({
+                query: suiteQL,
+                params: [result.values[0],  // Sales Order Header Id
+                         installmentItem,
+                         shipmentItem]
             });
+            log.debug('results',soLinesList);
+
+            // if there are lines for items other than an installment payment or tax lines, throw an error and 
+            // do not process the sales order.
+            if (soLinesList.results.length > 0) {
+                log.debug("map:error",result.values[0]);
+                throw new Error("Sales Order " + result.values[0] 
+                    + " has line items other than digital instsallment payments");
+
+            // otherwise, write the sales order to the context to be processed
+            } else {
+                log.debug("map:context",result.values[0]); 
+                context.write({
+                    key: result.values[0], // sales order internal id
+                    value: { deposit_id: result.values[7], // deposit internal id
+                             shopify_order_id: result.values[2], // shopify original order id
+                             deposit_balance: result.values[8] // deposit amount
+                    }
+                });                                    
+            }
+
         }
 
         function reduce(context) {
@@ -180,7 +218,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url'],
             context.reduceSummary.errors.iterator().each(
                 function (key, error, executionNo) {
                     log.error({
-                        title: 'Map error for key: ' + key + ', execution no.  ' + executionNo,
+                        title: 'Reduce error for key: ' + key + ', execution no.  ' + executionNo,
                         details: error
                     });
                     return true;
