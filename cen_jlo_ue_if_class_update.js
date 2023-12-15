@@ -36,6 +36,16 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
                     isDynamic: false
                 });
                 //log.debug("new rec",newRecord);
+
+                // temporary for now. If the IF is before Nov 26, 2023, then do not set the class
+                var targetDate = new Date(2023,10,26);
+                var tranDate = newRecord.getValue({ fieldId: 'trandate'});
+                log.debug("tranDate",tranDate + ":" + typeof tranDate);
+                log.debug("targetDate",targetDate);
+                if (tranDate > targetDate) {
+                    log.debug("date after target date");
+                    return;
+                }
     
                 var customerId = newRecord.getValue({ fieldId: 'entity'});
                 log.debug("Customer",customerId);
@@ -81,7 +91,7 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
                 } else { // this is not a B2B customer, so run the instagram/shopify checks
                     
                     var suiteQL = `
-                        select 
+                            select 
                             iftl.transaction, 
                             iftl.id ifid,  
                             sotl.transaction,  
@@ -117,7 +127,7 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
                         for (var i = 0; i < results.results.length; i++ ) {
                             // key is the IF line id
                             //log.debug(typeof results.results[i].values[1]);
-                            resultMap.set(results.results[i].values[1].toString(), {
+                            resultMap.set(results.results[i].values[1].toString(), {  // IF line id
                                 custcolcustcol_shpfy_num_instlmts:  results.results[i].values[4],
                                 custbody_celigo_etail_channel: results.results[i].values[5],
                                 custbody_cen_shpfy_ordr_nts: results.results[i].values[6]
@@ -155,28 +165,45 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
 
                         var classValue = null;
 
+                        // simple logic for Nov clode
+                        if (etailChannel && etailChannel.toString() === shopifyChannel
+                            && shopifyOrderNotes != null && shopifyOrderNotes.indexOf("Instagram") >= 0) {
+                            //classValue = '134'; // Instagram
+                            log.debug("instagram");
+                            classValue = instagramClass;
+                    
+                        } else if (etailChannel && etailChannel.toString() === shopifyChannel) {
+                            //classValue = '130'; // Entry/One-Shot
+                            log.debug("entry");
+                            classValue = entryClass;
+                        }
+                        log.debug("classValue",classValue);
+
+                        // logic once we get subscription figured out
+/*
                         // If subscriptionFlag = Y, eTail Channel = Shopify, and Order Notes Contains Instagram
-                        if (subscriptionFlag === 'Y' && etailChannel.toString() === shopifyChannel
+                        if (subscriptionFlag === 'Y' && etailChannel && etailChannel.toString() === shopifyChannel
                             && shopifyOrderNotes != null && shopifyOrderNotes.indexOf("Instagram") >= 0) {
                             //classValue = '134'; // Instagram
                             classValue = instagramClass;
                     
                         // If subscriptionFlag = Y, eTail Channel = Shopify, and Order Notes does not contain Instagram
-                        } else if (subscriptionFlag === 'Y' && etailChannel.toString() === shopifyChannel) {
+                        } else if (subscriptionFlag === 'Y' && etailChannel && etailChannel.toString() === shopifyChannel) {
                             //classValue = '106'; // Continuity
                             classValue = continuityClass;
 
                         // If subscriptionFlag = N, eTail Channel = Shopify, and Order Notes contains Instagram    
-                        } else if ((subscriptionFlag === 'N' || !subscriptionFlag) && etailChannel.toString() === shopifyChannel
+                        } else if ((subscriptionFlag === 'N' || !subscriptionFlag) && etailChannel && etailChannel.toString() === shopifyChannel
                             && shopifyOrderNotes != null && shopifyOrderNotes.indexOf("Instagram") >= 0) {            
                             //classValue = '134'; // Instagram
                             classValue = instagramClass;
                     
                         // If subscriptionFlag = N, eTail Channel = Shopify, and Order Notes does not contain Instagram
-                        } else if ((subscriptionFlag === 'N' || !subscriptionFlag) && etailChannel.toString() === shopifyChannel) {
+                        } else if ((subscriptionFlag === 'N' || !subscriptionFlag) && etailChannel && etailChannel.toString() === shopifyChannel) {
                             //classValue = '130'; // Entry/One-Shot
                             classValue = entryClass;
                         }
+                        */
 
                         var lineClass = newRecord.getSublistValue({
                             sublistId: 'item',

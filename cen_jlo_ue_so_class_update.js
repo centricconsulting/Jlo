@@ -64,6 +64,33 @@ define(['N/record', 'N/runtime'], function (record, runtime) {
                     log.debug("test et2",typeof etailChannel);
                 
                     var classValue = '';
+
+                    // temporary for now. If the IF is before Nov 26, 2023, then do not set the class
+                    var targetDate = new Date(2023,10,26);
+                    var tranDate = newRecord.getValue({ fieldId: 'trandate'});
+                    log.debug("tranDate",tranDate + ":" + typeof tranDate);
+                    log.debug("targetDate",targetDate);
+                    if (tranDate > targetDate) {
+                        log.debug("date after target date");
+                        return;
+                    }
+
+                    // temp logic
+                    if (etailChannel && etailChannel.toString() === shopifyChannel
+                        && shopifyOrderNotes != null && shopifyOrderNotes.indexOf("Instagram") >= 0) {
+                        //classValue = '134'; // Instagram
+                        log.debug("instagram");
+                        classValue = instagramClass;
+            
+                    } else if (etailChannel && etailChannel.toString() === shopifyChannel) {
+                        //classValue = '130'; // Entry/One-Shot
+                        log.debug("entry");
+                        classValue = entryClass;
+                    }
+                    log.debug("classValue",classValue);
+
+                    // logic when we figure out subscription
+                    /*
         
                     // If subscriptionFlag = Y, eTail Channel = Shopify, and Order Notes Contains Instagram
                     if (subscriptionFlag === 'Y' && etailChannel.toString() === shopifyChannel
@@ -87,6 +114,7 @@ define(['N/record', 'N/runtime'], function (record, runtime) {
                         //classValue = '130'; // Entry/One-Shot
                         classValue = entryClass;
                     }
+                    */
         
                     log.debug('classValue: ', classValue);
                     // Set the Class value for the line
@@ -94,6 +122,11 @@ define(['N/record', 'N/runtime'], function (record, runtime) {
                         sublistId: 'item',
                         fieldId: 'class',
                         line: i,
+                        value: classValue
+                    });
+
+                    newRecord.setValue({
+                        fieldId: 'class',
                         value: classValue
                     });
                 }
