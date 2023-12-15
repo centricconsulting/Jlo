@@ -4,14 +4,22 @@
 /= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =\
  * Purpose:  Send email for Effort Supervisor Group when record status update to open/close.
  * VER  DATE            AUTHOR               	 	 CHANGES
+<<<<<<< HEAD
  * 1.0  July 14, 2023   Centric Consulting(Aman)     Initial Version
  * For B2B users, force approval
  * - B2B is checked based on the customer attribute
 	
  * For B2C users:
  * 	- if any line is a subscription and does not have a original price, then force an approval
- * 	- if there is not enough quantity for any line, then force approval
- *  - For B2C users if there is enough quantity for all lines, auto approve
+ * 	- (remove) if there is not enough quantity for any line, then force approval
+ *  - (remove) For B2C users if there is enough quantity for all lines, auto approve
+ * 
+ * Modify to check count by location: https://suiteanswers.custhelp.com/app/answers/detail/a_id/74934/loc/en_US
+ * Kit components: https://suiteanswers.custhelp.com/app/answers/detail/a_id/46201/loc/en_US
+=======
+ * 1.0  July 14, 2023   Centric Consulting(Pradeep)     Initial Version
+ * 1.1  Oct 12, 2023    Centric Consulting(Pradeep)     Update script for new requirements
+>>>>>>> 8ce8821b2f1a8960cb2c45641e3e86f079d12513
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
 define(['N/search', 'N/record', 'N/runtime'],
@@ -34,6 +42,7 @@ define(['N/search', 'N/record', 'N/runtime'],
             try {
                 var executionContext = runtime.executionContext;
                 log.debug({ title: 'executionContext', details: executionContext });
+<<<<<<< HEAD
 
                 // Mazuk - removed the context because we need to handle CSV and WebServices contexts - to 
                 // cover any B2B csv loads and for any Amazon or Shopify orders
@@ -121,6 +130,91 @@ define(['N/search', 'N/record', 'N/runtime'],
                             //soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
                             log.debug('mark for pending approval - B2C', flag);
                             //log.debug('SO_Item_Sopify_Org_prize new 0', SO_Item_Sopify_Org_prize);
+=======
+                if (executionContext == 'USERINTERFACE') {
+                    var mode = context.type;
+                    var currentRecord = context.newRecord;
+                    if (mode == 'create' || mode == 'edit') {
+                        log.debug({ title: 'Mode', details: mode });
+                        var soIntId = currentRecord.getValue({ fieldId: "id" });
+                        var orderType = currentRecord.getValue({ fieldId: "custbody_jlb_order_type" });
+                        log.debug({ title: 'SO Detail', details: "Int ID: " + soIntId + ", Order Type: " + orderType });
+
+                        // IF order type is B2B Customer
+                        if (orderType == 2) {
+                            record.submitFields({
+                                type: record.Type.SALES_ORDER,
+                                id: soIntId,
+                                values: {
+                                    'orderstatus': "A",
+                                    'custbody_so_approval': true
+                                },
+                                options: { enableSourcing: false, ignoreMandatoryFields: true }
+                            });
+                        }
+
+                        // IF order type is B2C/DTC Customer
+                        if (orderType == 1) {
+                            var soRecord = record.load({
+                                type: record.Type.SALES_ORDER,
+                                id: soIntId,
+                                isDynamic: true
+                            });
+                            var itemCount = soRecord.getLineCount({ sublistId: 'item' });
+                            log.debug({ title: 'Item Count', details: itemCount });
+                            var Final_result;
+
+                            for (var i = 0; i < itemCount; i++) {
+                                var SO_Item = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
+                                var SO_Item_type = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'itemtype', line: i });
+                                var SO_Item_Quantity = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
+                                var SO_Item_Sub_status = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_subscrptn_flg', line: i });
+                                var SO_Item_Sopify_Org_prize = soRecord.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_orgnl_prc', line: i });
+                                var First_validation, Second_validation;
+
+                                // First validation
+                                if ((SO_Item_Sub_status == 'Y') && !SO_Item_Sopify_Org_prize) {
+                                    First_validation = false; // first validation failed
+                                } else {
+                                    First_validation = true; // first validation passed
+                                }
+
+                                //check for avaiable quantity
+                                var availableCount;
+                                if (SO_Item_type == "Kit") {
+                                    availableCount = checkAvailableKitItemCount(SO_Item);
+                                }
+                                if (SO_Item_type == "InvtPart") {
+                                    availableCount = checkAvailableInvItemCount(SO_Item);
+                                }
+                                if (availableCount >= SO_Item_Quantity) {
+                                    Second_validation = true; // Quantity validation passed
+                                    log.debug('Second_validation', flag);
+                                } else {
+                                    Second_validation = false; // Quantity validation failed
+                                    log.debug('Second_validation', flag);
+                                }
+
+                                if (First_validation == true && Second_validation == true) {
+                                    Final_result = "pass";
+                                } else {
+                                    Final_result = "fail";
+                                    break;
+                                }
+                            }
+                            if (Final_result == "pass") {
+                                soRecord.setValue({ fieldId: 'orderstatus', value: "B" }); // pending fulfillment
+                                soRecord.setValue({ fieldId: 'custbody_so_approval', value: false });
+                            }
+                            if (Final_result == "fail") {
+                                soRecord.setValue({ fieldId: 'orderstatus', value: "A" }); // pending approval
+                                soRecord.setValue({ fieldId: 'custbody_so_approval', value: true });
+                            }
+                            soRecord.save({
+                                enableSourcing: true,
+                                ignoreMandatoryFields: true
+                            });
+>>>>>>> 8ce8821b2f1a8960cb2c45641e3e86f079d12513
                         }
                         else {
                             log.debug("mark approved");
