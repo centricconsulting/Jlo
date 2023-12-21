@@ -21,13 +21,12 @@ define(['N/search', 'N/record', 'N/runtime'],
             var salesOrderID = jsonobj["values"]["internalid"]["value"];
             var Days = jsonobj["values"]["formulanumeric"];
             parseInt(Days);
-            log.debug("Days : ", Days);
             var installmentCount = jsonobj["values"]["custbody_installment_counter"];
             if (!installmentCount) {
                 installmentCount = 0;
             }
             installmentCount = parseInt(installmentCount) + 1;// Installation count update
-            log.debug("Details 1", "salesOrderID: " + salesOrderID + ", installmentCount: " + installmentCount);
+            log.debug("Details 1", "salesOrderID: " + salesOrderID + ", installmentCount: " + installmentCount + ", Days: " + Days);
             if (installmentCount > 3) { return; }
 
             var salesorderSearchObj = search.create({
@@ -47,7 +46,7 @@ define(['N/search', 'N/record', 'N/runtime'],
                     ]
             });
             var searchResultCount = salesorderSearchObj.runPaged().count;
-            log.debug("salesorderSearchObj result count", searchResultCount);
+            //log.debug("salesorderSearchObj result count", searchResultCount);
             var soIntID, docNumber, custIntID, subID, poNum, classID, locID, salesChannel, etailOrderID, item, itemType, quantity, itemRate,
                 amount, taxcode, shpfy_inst_price, shpfy_num_instlmts;
             var invRecord;
@@ -97,6 +96,7 @@ define(['N/search', 'N/record', 'N/runtime'],
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity });
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: shpfy_inst_price });
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'taxcode', value: taxcode });
+                                invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'location', value: locID });
                                 invRecord.commitLine({ sublistId: 'item' });
                             } else {
                                 invRecord.selectNewLine({ sublistId: 'item' });
@@ -108,6 +108,7 @@ define(['N/search', 'N/record', 'N/runtime'],
                                     invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: amount });
                                 }
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'taxcode', value: taxcode });
+                                invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'location', value: locID });
                                 invRecord.commitLine({ sublistId: 'item' });
                             }
                         }
@@ -118,6 +119,7 @@ define(['N/search', 'N/record', 'N/runtime'],
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity });
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'rate', value: shpfy_inst_price });
                                 invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'taxcode', value: taxcode });
+                                invRecord.setCurrentSublistValue({ sublistId: 'item', fieldId: 'location', value: locID });
                                 invRecord.commitLine({ sublistId: 'item' });
                             }
                         }
