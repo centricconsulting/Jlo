@@ -2,7 +2,7 @@
  *@NApiVersion 2.1
  *@NScriptType UserEventScript
 /= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =\
- * Purpose:  Cycle count approval process automation
+ * Purpose:  
  * VER  DATE            AUTHOR               	 	 CHANGES
  * 1.0  November 6, 2023   Centric Consulting(Pradeep)     Initial Version
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
@@ -18,14 +18,15 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
             var instagramClass = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_insta2'});
             var entryClass = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_entry2'});
             var shopifyChannel = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_channel'});
+            var corporateLocation = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_corp_loc3'});
 
             //var continuityClass = 106;
             //var instagramClass = 134;
             //var entryClass = 130;
             //var shopifyChannel = 1 + "";
 
-            //scriptContext.type === scriptContext.UserEventType.CREATE 
-            // only run for EDIT and In Line Edit (XEDIT - MASS UPDATE)
+            // only run for EDIT and In Line Edit (XEDIT - MASS UPDATE), create should default from the
+            // Sales Order
             if (scriptContext.type === scriptContext.UserEventType.EDIT ||
                 scriptContext.type === scriptContext.UserEventType.XEDIT ) {
                 var newRecord = scriptContext.newRecord;
@@ -38,14 +39,14 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
                 //log.debug("new rec",newRecord);
 
                 // temporary for now. If the IF is before Nov 26, 2023, then do not set the class
-                var targetDate = new Date(2023,10,26);
-                var tranDate = newRecord.getValue({ fieldId: 'trandate'});
-                log.debug("tranDate",tranDate + ":" + typeof tranDate);
-                log.debug("targetDate",targetDate);
-                if (tranDate > targetDate) {
-                    log.debug("date after target date");
-                    return;
-                }
+                // var targetDate = new Date(2023,10,26);
+                // var tranDate = newRecord.getValue({ fieldId: 'trandate'});
+                // log.debug("tranDate",tranDate + ":" + typeof tranDate);
+                // log.debug("targetDate",targetDate);
+                // if (tranDate > targetDate) {
+                //     log.debug("date after target date");
+                //     return;
+                // }
     
                 var customerId = newRecord.getValue({ fieldId: 'entity'});
                 log.debug("Customer",customerId);
@@ -144,42 +145,51 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
                             fieldId: 'line',
                             line: i
                         });
-                        //log.debug("lineid",typeof lineId);
+                        log.debug("lineid",lineId);
+
+                        // var cogsLine = newRecord.getSublistValue({
+                        //     sublistId: 'item',
+                        //     fieldId: 'cogs',
+                        //     line: i
+                        // });
+                        // log.debug("is cogs",cogsLine);
 
                         // get corresponding result based on line id
                         var result = resultMap.get(lineId);
-                        //log.debug("result",result);
+                        log.debug("result",result != null);
 
-                        var subscriptionFlag = 'N';
-                        if (result.custcolcustcol_shpfy_num_instlmts) {
-                            subscriptionFlag = 'Y';
-                        };
-                        var etailChannel = result.custbody_celigo_etail_channel;
-                        var shopifyOrderNotes = result.custbody_cen_shpfy_ordr_nts;
-
-                        log.debug("test values",i + ":" + subscriptionFlag + ":" + etailChannel + ":" + shopifyOrderNotes);
-                        log.debug("test sub",subscriptionFlag === 'Y');
-                        //log.debug("test etail",etailChannel.toString() === shopifyChannel);
-                        //log.debug("test shop",typeof shopifyChannel);
-                        //log.debug("test et2",typeof etailChannel);
-
-                        var classValue = null;
-
-                        // simple logic for Nov clode
-                        if (etailChannel && etailChannel.toString() === shopifyChannel
-                            && shopifyOrderNotes != null && shopifyOrderNotes.indexOf("Instagram") >= 0) {
-                            //classValue = '134'; // Instagram
-                            log.debug("instagram");
-                            classValue = instagramClass;
-                    
-                        } else if (etailChannel && etailChannel.toString() === shopifyChannel) {
-                            //classValue = '130'; // Entry/One-Shot
-                            log.debug("entry");
-                            classValue = entryClass;
-                        }
-                        log.debug("classValue",classValue);
-
-                        // logic once we get subscription figured out
+                        // cogs lines will not be in the result map
+                        if (result != null) {
+                            var subscriptionFlag = 'N';
+                            if (result != null && result.custcolcustcol_shpfy_num_instlmts) {
+                                subscriptionFlag = 'Y';
+                            };
+                            var etailChannel = result.custbody_celigo_etail_channel;
+                            var shopifyOrderNotes = result.custbody_cen_shpfy_ordr_nts;
+    
+                            log.debug("test values",i + ":" + subscriptionFlag + ":" + etailChannel + ":" + shopifyOrderNotes);
+                            log.debug("test sub",subscriptionFlag === 'Y');
+                            //log.debug("test etail",etailChannel.toString() === shopifyChannel);
+                            //log.debug("test shop",typeof shopifyChannel);
+                            //log.debug("test et2",typeof etailChannel);
+    
+                            var classValue = null;
+    
+                            // simple logic for Nov clode
+                            if (etailChannel && etailChannel.toString() === shopifyChannel
+                                && shopifyOrderNotes != null && shopifyOrderNotes.indexOf("Instagram") >= 0) {
+                                //classValue = '134'; // Instagram
+                                log.debug("instagram");
+                                classValue = instagramClass;
+                        
+                            } else if (etailChannel && etailChannel.toString() === shopifyChannel) {
+                                //classValue = '130'; // Entry/One-Shot
+                                log.debug("entry");
+                                classValue = entryClass;
+                            }
+                            log.debug("classValue",classValue);
+    
+                            // logic once we get subscription figured out
 /*
                         // If subscriptionFlag = Y, eTail Channel = Shopify, and Order Notes Contains Instagram
                         if (subscriptionFlag === 'Y' && etailChannel && etailChannel.toString() === shopifyChannel
@@ -204,28 +214,30 @@ define(['N/record','N/search', 'N/query', 'N/runtime'], function (record, search
                             classValue = entryClass;
                         }
                         */
-
-                        var lineClass = newRecord.getSublistValue({
-                            sublistId: 'item',
-                            fieldId: 'class',
-                            line: i
-                        });
-
-                        log.debug("line class",lineClass);
-                        
-                        // only set the class if it is not set - meaning it 
-                        // was defaulted in from the sales order or set manually
-                        if (!lineClass) {
-                            log.debug("line class empty");
-        
-                            // Set the Class value for the line
-                            newRecord.setSublistValue({
+                           
+                            var lineClass = newRecord.getSublistValue({
                                 sublistId: 'item',
                                 fieldId: 'class',
-                                line: i,
-                                value: classValue
+                                line: i
                             });
+    
+                            log.debug("line class",lineClass);
+                            
+                            // only set the class if it is not set - meaning it 
+                            // was defaulted in from the sales order or set manually
+                            if (!lineClass) {
+                                log.debug("line class empty");
+            
+                                // Set the Class value for the line
+                                newRecord.setSublistValue({
+                                    sublistId: 'item',
+                                    fieldId: 'class',
+                                    line: i,
+                                    value: classValue
+                                });
+                            }
                         }
+ 
                     }
 
                 }
