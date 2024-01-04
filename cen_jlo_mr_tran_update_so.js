@@ -11,7 +11,6 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
     function (search, record, runtime, email, url, query) {
         function getInputData() {
 
-
             log.audit('<<< START >>>', 'Start of script execution');
             //var arAcct = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_aracct'});
             //log.debug("ar acct",arAcct);
@@ -20,13 +19,12 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 select distinct t.id tranid, t.recordtype, t.trandate
                 from transaction t, transactionline tl
                 where 
-                --t.id  = 355846 and
-                --t.id > 270000 and 
-                t.recordtype = 'invoice'
-                and tl.transaction = t.id
-                and tl.class is null
-                and trandate >= to_date('11/26/2023','MM/DD/YYYY')
-                order by tranid desc
+                    --t.id = 352564 and 
+                    t.recordtype = 'salesorder'
+                    and tl.transaction = t.id
+                    and tl.class is null
+                    and trandate => to_date('11/26/2023','MM/DD/YYYY')
+                order by tranid asc
             `; 
             
              return {

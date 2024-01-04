@@ -126,10 +126,10 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
                     log.debug('subscriptionFlag: ', subscriptionFlag);
                     log.debug('etailChannel: ', etailChannel);
                     log.debug('shpifyOrderNotes: ', shopifyOrderNotes);
-                    log.debug('i: ', i);
-                    log.debug("test etail",etailChannel.toString() === shopifyChannel);
-                    log.debug("test shop",typeof shopifyChannel);
-                    log.debug("test et2",typeof etailChannel);
+                    // log.debug('i: ', i);
+                    // log.debug("test etail",etailChannel.toString() === shopifyChannel);
+                    // log.debug("test shop",typeof shopifyChannel);
+                    // log.debug("test et2",typeof etailChannel);
                 
                     var classValue = '';
 
