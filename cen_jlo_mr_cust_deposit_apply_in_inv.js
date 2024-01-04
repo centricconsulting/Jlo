@@ -261,9 +261,25 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 reduceList += '<a href='+link+'>'+key+'</a>: '+ values.message + '<br>'
                 return true;
             });
+
+            var mapList = '';
+            context.mapSummary.errors.iterator().each(function (key, value)
+            {
+                var values = JSON.parse(value);
+                
+                var link = url.resolveRecord({
+                    recordType: 'salesorder',
+                    recordId: key,
+                    isEditMode: false
+                });
+                log.debug("values",values);
+                mapList += '<a href='+link+'>'+key+'</a>: '+ values.message + '<br>'
+                return true;
+            });
             
             var bodyText = 'Installment payments with no matching invoices:<br>' + list
-                        + '<br>Sales Orders that had errors:<br>' + reduceList;
+                        + '<br>Sales Orders that had errors:<br>' + reduceList
+                        + '<br>' + mapList;
           
             email.send({
                 author: summaryEmail,
