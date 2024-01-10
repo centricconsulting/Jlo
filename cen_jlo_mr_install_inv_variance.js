@@ -42,6 +42,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/url', 'N/email'],
             log.debug("Json values:",jsonobj.values[0]);
 
             var varianceItem = runtime.getCurrentScript().getParameter({ name: 'custscript_jlo_variance_item' });
+            var arAccount = runtime.getCurrentScript().getParameter({ name: 'custscript_jlo_ar_acct' });
             log.debug("varianceItem",varianceItem);
 
             // load the sales order and then close the variance line
@@ -87,6 +88,9 @@ define(['N/search', 'N/record', 'N/runtime', 'N/url', 'N/email'],
                 //defaultValues: {
                 //billdate: '01/01/2019'} 
             });
+
+            // set the AR Account
+            invoiceOne.setValue({fieldId: 'account', value: arAccount, ignoreFieldChange: false});
 
             /// need to process lines
             //  - remove any shopify order variances
