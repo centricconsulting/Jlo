@@ -92,15 +92,17 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     and mainline = 'F'
                     and taxline = 'F'
                     and itemtype != 'Discount'
-                    and item != ? -- Shopify Shipping Cost 7770
+                    --and item != ? -- Shopify Shipping Cost 7770
             `; 
 
             var soLinesList = query.runSuiteQL({
                 query: suiteQL,
                 params: [result.values[0],  // Sales Order Header Id
-                         installmentItem,
-                         shipmentItem]
+                         installmentItem]
             });
+            //, shipmentItem]
+
+
             log.debug('results',soLinesList);
 
             // if there are lines for items other than an installment payment or tax lines, throw an error and 
@@ -197,7 +199,8 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     createRecord.save();
                 } else {
                     // mark that there were no invoices to apply this payment to
-                    context.write(context.key,{"result": "No Invoice to Match Against"});
+                    context.write(context.key,{"result": "No Invoice to Match Against", 
+                         "shopifyOrderId": parsedValue.shopify_order_id});
                     log.debug("no invoice found",context.key);
                 }
             }
@@ -242,7 +245,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     recordId: key,
                     isEditMode: false
                 });
-                list += '<a href='+link+'>'+key+'</a><br>'
+                list += '<a href='+link+'>'+key+'</a> : ' + values.shopifyOrderId + '<br>'
                 return true;
             });
 
