@@ -140,7 +140,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 log.debug("parsed",parsedValue);
 
                 // find invoice to apply payment to
-                var applyToInvId = findInvoice(parsedValue.shopify_order_id);
+                var applyToInvId = findInvoiceOpen(parsedValue.shopify_order_id);
                 log.debug("apply to", applyToInvId);
 
                 // if we find an invoice to apply to, then do the following 
@@ -200,7 +200,9 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 } else {
                     // mark that there were no invoices to apply this payment to
                     context.write(context.key,{"result": "No Invoice to Match Against", 
-                         "shopifyOrderId": parsedValue.shopify_order_id});
+                        "shopifyOrderId": parsedValue.shopify_order_id,
+                        "invoiceId":  findInvoice(parsedValue.shopify_order_id)
+                    });
                     log.debug("no invoice found",context.key);
                 }
             }
@@ -252,7 +254,13 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     recordId: key,
                     isEditMode: false
                 });
-                list += '<a href='+link+'>'+key+'</a> : ' + values.shopifyOrderId + '<br>'
+
+                var invlink = url.resolveRecord({
+                    recordType: 'invoice',
+                    recordId: values.invoiceId,
+                    isEditMode: false
+                });
+                list += 'Digital Installment Sales Order: <a href='+link+'>'+key+'</a> : Invoice to Apply: <a href=' + invlink + '>' + values.shopifyOrderId + '</a><br>'
                 return true;
             });
 
@@ -300,7 +308,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
             });
         }
 
-        function findInvoice(eTailOrderId) {
+        function findInvoiceOpen(eTailOrderId) {
             var invoiceSearchObj;
             invoiceSearchObj = search.create({
                 type: "invoice",
@@ -310,6 +318,33 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                         "AND", ["mainline", "is", "T"],
                         "AND", [["custbody_celigo_etail_order_id", "is", eTailOrderId], "OR", ["custbody_shopify_order_id", "is", eTailOrderId]],
                         "AND", ["status", "anyof", "CustInvc:A"]
+                    ],
+                columns:
+                    [
+                        "internalid", "tranid", "amountremaining"
+                    ]
+            });
+            var searchResultCount = invoiceSearchObj.runPaged().count;
+            log.debug("invoiceSearchObj result count", searchResultCount);
+            var invTran;
+            if (searchResultCount > 0) {
+                invoiceSearchObj.run().each(function (result) {
+                    invTran = result.getValue({ name: "internalid" });
+                    return true;
+                });
+            }
+            return invTran;
+        }
+
+        function findInvoice(eTailOrderId) {
+            var invoiceSearchObj;
+            invoiceSearchObj = search.create({
+                type: "invoice",
+                filters:
+                    [
+                        ["type", "anyof", "CustInvc"],
+                        "AND", ["mainline", "is", "T"],
+                        "AND", [["custbody_celigo_etail_order_id", "is", eTailOrderId], "OR", ["custbody_shopify_order_id", "is", eTailOrderId]]
                     ],
                 columns:
                     [
