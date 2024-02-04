@@ -229,8 +229,15 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
             );
 
             // get the person to send the summary email to
-            var summaryEmail = runtime.getCurrentScript().getParameter({name: 'custscript_jlo_result_email'})
+            var summaryEmail = runtime.getCurrentScript().getParameter({name: 'custscript_jlo_result_email'});
             log.debug("summary email",summaryEmail);
+            var emailRecipients = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_recipients'});
+            log.debug("recipients",emailRecipients);
+            var emailRecipientsArray = emailRecipients.split(";").map(function(item) {
+                return item.trim();
+            });  
+            log.debug("recipient array",emailRecipientsArray);
+
         
             // process anything found in the context
             var list = '';
@@ -287,6 +294,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
             email.send({
                 author: summaryEmail,
                 recipients: summaryEmail,
+                cc: emailRecipientsArray,
                 subject: 'Installment Payment Application Errors',
                 body: bodyText
             });
