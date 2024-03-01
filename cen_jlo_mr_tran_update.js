@@ -46,7 +46,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 t.recordtype = 'itemfulfillment'
                 and tl.transaction = t.id
                 and tl.class is null
-                and trandate < to_date('11/26/2023','MM/DD/YYYY')
+                and trandate => to_date('11/26/2023','MM/DD/YYYY')
                 order by tranid desc
             `; 
             

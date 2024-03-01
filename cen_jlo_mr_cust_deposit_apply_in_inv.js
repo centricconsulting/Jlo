@@ -92,15 +92,17 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     and mainline = 'F'
                     and taxline = 'F'
                     and itemtype != 'Discount'
-                    and item != ? -- Shopify Shipping Cost 7770
+                    --and item != ? -- Shopify Shipping Cost 7770
             `; 
 
             var soLinesList = query.runSuiteQL({
                 query: suiteQL,
                 params: [result.values[0],  // Sales Order Header Id
-                         installmentItem,
-                         shipmentItem]
+                         installmentItem]
             });
+            //, shipmentItem]
+
+
             log.debug('results',soLinesList);
 
             // if there are lines for items other than an installment payment or tax lines, throw an error and 
@@ -138,7 +140,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 log.debug("parsed",parsedValue);
 
                 // find invoice to apply payment to
-                var applyToInvId = findInvoice(parsedValue.shopify_order_id);
+                var applyToInvId = findInvoiceOpen(parsedValue.shopify_order_id);
                 log.debug("apply to", applyToInvId);
 
                 // if we find an invoice to apply to, then do the following 
@@ -197,7 +199,10 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     createRecord.save();
                 } else {
                     // mark that there were no invoices to apply this payment to
-                    context.write(context.key,{"result": "No Invoice to Match Against"});
+                    context.write(context.key,{"result": "No Invoice to Match Against", 
+                        "shopifyOrderId": parsedValue.shopify_order_id,
+                        "invoiceId":  findInvoice(parsedValue.shopify_order_id)
+                    });
                     log.debug("no invoice found",context.key);
                 }
             }
@@ -226,8 +231,15 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
             );
 
             // get the person to send the summary email to
-            var summaryEmail = runtime.getCurrentScript().getParameter({name: 'custscript_jlo_result_email'})
+            var summaryEmail = runtime.getCurrentScript().getParameter({name: 'custscript_jlo_result_email'});
             log.debug("summary email",summaryEmail);
+            var emailRecipients = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_recipients'});
+            log.debug("recipients",emailRecipients);
+            var emailRecipientsArray = emailRecipients.split(";").map(function(item) {
+                return item.trim();
+            });  
+            log.debug("recipient array",emailRecipientsArray);
+
         
             // process anything found in the context
             var list = '';
@@ -242,7 +254,13 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     recordId: key,
                     isEditMode: false
                 });
-                list += '<a href='+link+'>'+key+'</a><br>'
+
+                var invlink = url.resolveRecord({
+                    recordType: 'invoice',
+                    recordId: values.invoiceId,
+                    isEditMode: false
+                });
+                list += 'Digital Installment Sales Order: <a href='+link+'>'+key+'</a> : Invoice to Apply: <a href=' + invlink + '>' + values.shopifyOrderId + '</a><br>'
                 return true;
             });
 
@@ -261,16 +279,61 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                 reduceList += '<a href='+link+'>'+key+'</a>: '+ values.message + '<br>'
                 return true;
             });
+
+            var mapList = '';
+            context.mapSummary.errors.iterator().each(function (key, value)
+            {
+                var values = JSON.parse(value);
+                
+                var link = url.resolveRecord({
+                    recordType: 'salesorder',
+                    recordId: key,
+                    isEditMode: false
+                });
+                log.debug("values",values);
+                mapList += '<a href='+link+'>'+key+'</a>: '+ values.message + '<br>'
+                return true;
+            });
             
             var bodyText = 'Installment payments with no matching invoices:<br>' + list
-                        + '<br>Sales Orders that had errors:<br>' + reduceList;
+                        + '<br>Sales Orders that had errors:<br>' + reduceList
+                        + '<br>' + mapList;
           
             email.send({
                 author: summaryEmail,
                 recipients: summaryEmail,
+                cc: emailRecipientsArray,
                 subject: 'Installment Payment Application Errors',
                 body: bodyText
             });
+        }
+
+        function findInvoiceOpen(eTailOrderId) {
+            var invoiceSearchObj;
+            invoiceSearchObj = search.create({
+                type: "invoice",
+                filters:
+                    [
+                        ["type", "anyof", "CustInvc"],
+                        "AND", ["mainline", "is", "T"],
+                        "AND", [["custbody_celigo_etail_order_id", "is", eTailOrderId], "OR", ["custbody_shopify_order_id", "is", eTailOrderId]],
+                        "AND", ["status", "anyof", "CustInvc:A"]
+                    ],
+                columns:
+                    [
+                        "internalid", "tranid", "amountremaining"
+                    ]
+            });
+            var searchResultCount = invoiceSearchObj.runPaged().count;
+            log.debug("invoiceSearchObj result count", searchResultCount);
+            var invTran;
+            if (searchResultCount > 0) {
+                invoiceSearchObj.run().each(function (result) {
+                    invTran = result.getValue({ name: "internalid" });
+                    return true;
+                });
+            }
+            return invTran;
         }
 
         function findInvoice(eTailOrderId) {
@@ -281,8 +344,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     [
                         ["type", "anyof", "CustInvc"],
                         "AND", ["mainline", "is", "T"],
-                        "AND", [["custbody_celigo_etail_order_id", "is", eTailOrderId], "OR", ["custbody_shopify_order_id", "is", eTailOrderId]],
-                        "AND", ["status", "anyof", "CustInvc:A"]
+                        "AND", [["custbody_celigo_etail_order_id", "is", eTailOrderId], "OR", ["custbody_shopify_order_id", "is", eTailOrderId]]
                     ],
                 columns:
                     [
