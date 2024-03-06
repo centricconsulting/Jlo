@@ -2,7 +2,7 @@
  * @NApiVersion 2.x
  * @NScriptType MapReduceScript
 /= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =\
- * Purpose: 
+ * Purpose: This script is used to create invoice for digital payment and installment automation. 
  * VER  DATE           AUTHOR               		CHANGES
  * 1.0  Jan 30, 2024   Centric Consulting(Pradeep)   	Initial Version
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
