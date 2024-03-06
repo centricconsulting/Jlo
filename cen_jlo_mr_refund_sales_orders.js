@@ -41,9 +41,11 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     and so.recordtype  != 'customerrefund'
                     --and t.foreigntotal = (-1) * so.foreigntotal
                     and so.status = 'F'  -- Pending Billing
-                    and so.id = 776290
+                    --and so.id = 776290
                     order by t.id desc
             `; 
+            
+
             
              return {
                 type: 'suiteql',
