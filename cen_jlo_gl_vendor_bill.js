@@ -29,36 +29,89 @@ function customizeGlImpact(record, standardLines, customLines, book)
     }
 
     // check to see if an entity was associated on the credit line
-    if (savedEntity) {
-        for (var i = 0; i < standardLines.getCount(); i++)
-        {
-            var currLine = standardLines.getLine(i);
-            //nlapiLogExecution('DEBUG', 'standardLines entity', currLine.getEntityId());
+    try 
+    {
+        if (savedEntity) {
+            for (var i = 0; i < standardLines.getCount(); i++)
+            {
+                var currLine = standardLines.getLine(i);
 
-            // if this is a debit GL line, and there is no existing entity, then add the 
-            // entity from the credit line
-            if (currLine.getDebitAmount() && !currLine.getEntityId()) {
-                nlapiLogExecution('DEBUG', 'standardLines savedEntity', savedEntity);
-                
-                var line = customLines.addNewLine();
-                line.setAccountId(currLine.getAccountId());
-                line.setClassId(currLine.getClassId());
-                line.setCreditAmount(currLine.getDebitAmount());
-                line.setDepartmentId(currLine.getDepartmentId());
-                line.setLocationId(currLine.getLocationId());
-                line.setMemo(currLine.getMemo());
+                nlapiLogExecution('DEBUG', 'VB Line mod:', recid 
+                    + ":" + currLine.getAccountId() 
+                    + ":" + savedEntity
+                    + ":" + currLine.getClassId() 
+                    + ":" + currLine.getDebitAmount()
+                    + ":" + currLine.getCreditAmount()
+                    + ":" + currLine.getDepartmentId()
+                    + ":" + currLine.getLocationId()
+                    + ":" + currLine.getMemo()
+                );
+                //nlapiLogExecution('DEBUG', 'standardLines entity', currLine.getEntityId());
+    
+                // if this is a debit GL line, and there is no existing entity, then add the 
+                // entity from the credit line
+                if (currLine.getDebitAmount() != 0 && !currLine.getEntityId()) {
+                    nlapiLogExecution('DEBUG', 'standardLines debit', savedEntity);
+                    
+                    var line = customLines.addNewLine();
+                    line.setAccountId(currLine.getAccountId());
+                    line.setClassId(currLine.getClassId());
+                    line.setCreditAmount(currLine.getDebitAmount());
+                    line.setDepartmentId(currLine.getDepartmentId());
+                    line.setLocationId(currLine.getLocationId());
+                    line.setMemo(currLine.getMemo());
+    
+                    var line = customLines.addNewLine();
+                    line.setAccountId(currLine.getAccountId());
+                    line.setClassId(currLine.getClassId());
+                    line.setDebitAmount(currLine.getDebitAmount());
+                    line.setDepartmentId(currLine.getDepartmentId());
+                    line.setEntityId(savedEntity);
+                    line.setLocationId(currLine.getLocationId());
+                    line.setMemo(currLine.getMemo());
 
-                var line = customLines.addNewLine();
-                line.setAccountId(currLine.getAccountId());
-                line.setClassId(currLine.getClassId());
-                line.setDebitAmount(currLine.getDebitAmount());
-                line.setDepartmentId(currLine.getDepartmentId());
-                line.setEntityId(savedEntity);
-                line.setLocationId(currLine.getLocationId());
-                line.setMemo(currLine.getMemo());
+                    //throw new Error("ron test");
+                }
+
+                if (currLine.getCreditAmount() != 0 && !currLine.getEntityId()) {
+                    nlapiLogExecution('DEBUG', 'credit', savedEntity);
+                    
+                    var line = customLines.addNewLine();
+                    line.setAccountId(currLine.getAccountId());
+                    line.setClassId(currLine.getClassId());
+                    line.setDebitAmount(currLine.getCreditAmount());
+                    line.setDepartmentId(currLine.getDepartmentId());
+                    line.setLocationId(currLine.getLocationId());
+                    line.setMemo(currLine.getMemo());
+
+                    var line = customLines.addNewLine();
+                    line.setAccountId(currLine.getAccountId());
+                    line.setClassId(currLine.getClassId());
+                    line.setCreditAmount(currLine.getCreditAmount());
+                    line.setDepartmentId(currLine.getDepartmentId());
+                    line.setLocationId(currLine.getLocationId());
+                    line.setMemo(currLine.getMemo());
+                    line.setEntityId(savedEntity);
+    
+
+
+                    //throw new Error("ron test");
+                }
             }
         }
+    } catch (e) {
+        nlapiLogExecution('ERROR', 'Error during Vendor Bill mod:', recid 
+            + ":" + currLine.getAccountId() 
+            + ":" + savedEntity
+            + ":" + currLine.getClassId() 
+            + ":" + currLine.getDebitAmount()
+            + ":" + currLine.getDepartmentId()
+            + ":" + currLine.getLocationId()
+            + ":" + currLine.getMemo()
+            + ":" + e
+        );
     }
+
 	
 } 
    
