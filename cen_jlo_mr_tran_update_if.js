@@ -20,20 +20,30 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
             // it would be nice to eliminate any duplicates by making this distinct
             // Sales Order status:  A = Pending Approval, B = Pending Fulfillment,  F = Pending Billing
             // Deposit Status: A = Not Deposited, B = Deposited
+            // var suiteQL = `
+            //     select distinct t.id tranid, t.recordtype, t.trandate
+            //     from transaction t, transactionline tl
+            //     where 
+            //         t.id > 41000 and 
+            //         t.id = 2234137 and
+            //         t.id <= 2238054 and
+            //         t.recordtype = 'itemfulfillment'
+            //         and tl.transaction = t.id
+            //         --and tl.class is null
+            //         and postingperiod > 90
+            //         and trandate => to_date('01/01/2024','MM/DD/YYYY')
+            //     order by tranid desc
+            // `; 
+
             var suiteQL = `
-                select distinct t.id tranid, t.recordtype, t.trandate
-                from transaction t, transactionline tl
+                select id, recordtype
+                from transaction
                 where 
-                    t.id > 41000 and 
-                    t.id = 2234137 and
-                    t.id <= 2238054 and
-                    t.recordtype = 'itemfulfillment'
-                    and tl.transaction = t.id
-                    --and tl.class is null
+                    id = 799517 and
+                    recordtype = 'itemfulfillment'
+                    and lastmodifieddate < to_date('2024-04-20 17:00','YYYY-MM-DD HH24:MI')
                     and postingperiod > 90
-                    and trandate => to_date('01/01/2024','MM/DD/YYYY')
-                order by tranid desc
-            `; 
+        `; 
             
              return {
                 type: 'suiteql',
@@ -42,16 +52,37 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
         }
 
         function map(context) {
-            //log.debug("map entered");
+            log.debug("map entered", context.value);
             var result = JSON.parse(context.value);
 
+            context.write({
+                key: result.values[0], 
+                value: { 
+                    recordtype : result.values[1]                   
+                }
+            });
+
+            // var tran = record.load({
+            //     type: result.values[1],
+            //     id: result.values[0],
+            //     isDynamic: false
+            // });
+            // tran.save();
+            // log.debug('tran id',result.values[0]);
+        }
+
+        function reduce(context) {
+            //log.debug("map entered");
+            //var result = JSON.parse(context.key);
+            var jsonobj = JSON.parse(context.values[0]);
+
             var tran = record.load({
-                type: result.values[1],
-                id: result.values[0],
+                type: jsonobj.recordtype,
+                id: context.key,
                 isDynamic: false
             });
             tran.save();
-            log.debug('tran id',result.values[0]);
+            log.debug('tran id',jsonobj.recordtype + ":" + context.key);
         }
 
 
@@ -83,6 +114,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
         return {
             getInputData: getInputData,
             map: map,
+            reduce: reduce,
             summarize: summarize
         };
     });
