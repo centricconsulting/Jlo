@@ -11,6 +11,18 @@
  * Note that fulfillment may have happened already, but given we've refunded the 
  * customer deposit invoicing does not make any sense.
  * 
+ * This handles 2 situations:
+ * 1) If the customer refund = total amount of the sales order
+ *      In this case, close the sales order
+ * 2) If the customer refund = total amount of the sales order, minus shipping and shipping tax
+ *      In this case:
+ *          - close the non-shipping lines on the sales order
+ *          - create an invoice for the shipping cost
+ *          - apply remaining customer deposit to the invoice
+ * 
+ * Note: because we are looking for Sales Order in pending billing, we know a credit memo was not yet created by Celigo.
+ *      Per the Celigo notes, a credit memo is only created after invoicing.
+ * 
 \= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = */
 
 define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
@@ -41,7 +53,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                     and so.recordtype  != 'customerrefund'
                     --and t.foreigntotal = (-1) * so.foreigntotal
                     and so.status = 'F'  -- Pending Billing
-                    --and so.id = 776290
+                    --and so.id = 1118817
                     order by t.id desc
             `; 
             
@@ -55,16 +67,18 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
 
         function reduce(context) {
             log.debug("reduce context",context.key);
+            var shippingItem = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_shipping_item'});
             
             for (var v in context.values) {
                 var parsedValue = JSON.parse(context.values[v]);
 
                 log.debug("sales order id",parsedValue.values[5]);
                 var soId = parsedValue.values[5];
-                var total = parsedValue.values[12];
+                var total = parseFloat(parsedValue.values[12],10);
                 log.debug("total",total);
 
-                if (parseInt(total,10) == 0) {
+                //if (parseFloat(total,10) == 0) {
+                if (total === 0) {
                     // close existing sales order, this allows us to apply the deposit
                     var objRecord = record.load({
                         type: record.Type.SALES_ORDER,
@@ -96,12 +110,127 @@ define(['N/search', 'N/record', 'N/runtime', 'N/email', 'N/url', 'N/query'],
                         });
                     }
                 } else {
-                    context.write(soId,{
-                        "result": "This is not a full refund - this will have to be processed manually", 
-                        "salesOrderId": soId
-                    });
+                    var shippingCost = getShippingCost(soId,shippingItem);
+                    log.debug("shipping cost",shippingCost+":"+total+":");
+                    if (shippingCost === total) {
+                        // close existing sales order, this allows us to apply the deposit
+                        var objRecord = record.load({
+                            type: record.Type.SALES_ORDER,
+                            id: soId,
+                            isDynamic: false
+                        });
+                        //     log.debug("status",objRecord.getValue({ fieldId: 'orderstatus'}));
+
+                        var itemLines = objRecord.getLineCount({ sublistId: 'item' });
+                        log.debug("item count", itemLines);
+                        for (i = 0; i < itemLines; i++) {
+                            log.debug("set value");
+                            var currentItem = objRecord.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });     
+                            if (currentItem != shippingItem) {
+                                objRecord.setSublistValue({ sublistId: 'item', fieldId: 'isclosed', line: i, value: true });
+                            }                        
+                        }
+
+                        try {
+                            objRecord.save();  
+                            
+                            processInvoice(soId);
+
+                            // mark that this invoice was processed
+                            context.write(soId,{
+                                "result": "Closed", 
+                                "salesOrderId": soId
+                            });
+                        }
+                        catch (e) {
+                            context.write(soId,{
+                                "result": e.message, 
+                                "salesOrderId": soId
+                            });
+                        }
+
+                    } else {
+                        context.write(soId,{
+                            "result": "Could not process the refund - this will have to be processed manually", 
+                            "salesOrderId": soId
+                        });
+                    }
+                    
                 }
             }
+        }
+
+        function getShippingCost(orderId, shippingItem) {
+
+            var transactionSearchObj = search.create({
+                type: "transaction",
+                settings:[{"name":"consolidationtype","value":"ACCTTYPE"},{"name":"includeperiodendtransactions","value":"F"}],
+                filters:
+                [
+                   ["internalidnumber","equalto",orderId], 
+                   "AND", 
+                   ["item","anyof",shippingItem]
+                ],
+                columns:
+                [
+                   search.createColumn({name: "trandate", label: "Date"}),
+                   search.createColumn({name: "type", label: "Type"}),
+                   search.createColumn({name: "tranid", label: "Document Number"}),
+                   search.createColumn({name: "entity", label: "Name"}),
+                   search.createColumn({name: "item", label: "Item"}),
+                   search.createColumn({name: "amount", label: "Amount"}),
+                   search.createColumn({name: "taxamount", label: "Amount (Tax)"}),
+                   search.createColumn({
+                      name: "formulacurrency",
+                      formula: "{amount}+{taxamount}",
+                      label: "Formula (Currency)"
+                   })
+                ]
+            });
+
+            var searchResultCount = transactionSearchObj.runPaged().count;
+            log.debug("transactionSearchObj result count",searchResultCount);
+            var totalAmount = null;
+            transactionSearchObj.run().each(function(result){
+               // .run().each has a limit of 4,000 results
+               log.debug("result",result);
+               totalAmount = parseFloat(result.getValue({ name: "formulacurrency" }));
+               return true;
+            });
+            return totalAmount;
+        }
+
+        function processInvoice(salesOrderId) {
+            var arAccount = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_ar_acct'});
+            var terms = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_inv_terms'});
+
+            // now create the invoice
+            var invoiceOne = record.transform({
+                fromType:'salesorder',
+                fromId: salesOrderId,
+                toType: 'invoice'
+            });
+
+            // set the tran date
+            // var tranDate = getIFTranDate(salesOrderId);
+            // if (tranDate) {
+            //     log.debug("if date",tranDate + ":" + typeof tranDate);
+            //     invoiceOne.setValue({fieldId: 'trandate', value: new Date(tranDate), ignoreFieldChange: false});
+            // } else {
+            //     log.debug("so date",soTranDate + ":" + typeof soTranDate);
+            //     invoiceOne.setValue({fieldId: 'trandate', value: new Date(soTranDate), ignoreFieldChange: false});
+            // }
+
+            // set the AR Account
+            invoiceOne.setValue({fieldId: 'account', value: arAccount, ignoreFieldChange: false});
+            invoiceOne.setValue({fieldId: 'terms', value: terms, ignoreFieldChange: false});
+
+            var invoiceId = invoiceOne.save({
+                enableSourcing: true,
+                ignoreMandatoryFields: true
+            });
+
+            return invoiceId;
         }
 
         function summarize(context) {
