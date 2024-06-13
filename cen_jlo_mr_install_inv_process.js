@@ -34,6 +34,7 @@ define(['N/search', 'N/record', 'N/runtime', 'N/url', 'N/email', 'N/query'],
                     t.custbody_cen_jlo_digital_pmt_ord = 'T')
                     and t.recordtype = 'salesorder'
                     and t.status = 'F' -- pending billing only
+                    and t.createddate < to_date('2024-06-08','YYYY-MM-DD')
             `; 
             
              return {

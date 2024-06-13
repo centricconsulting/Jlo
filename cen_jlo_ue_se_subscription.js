@@ -23,18 +23,22 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
             return;
 
         var digitalPaymentItem = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_digital_pmt'});
+        var choiceBundleItem = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_choice'});
+        var cutoffDate = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_cutoff'});
+
         var newRecord = context.newRecord;
         var salesOrderId = context.newRecord.id;
         // Load the Sales Order record 
         var newRecord = record.load({ type: record.Type.SALES_ORDER, id: salesOrderId });
         var lineCount = newRecord.getLineCount({ sublistId: 'item' });
         log.debug('lineCount', lineCount);
-        var jloLocation = newRecord.getValue({
-            fieldId: 'location'
-        });
+
+        var jloLocation = newRecord.getValue({fieldId: 'location' });
+        var creationDate = newRecord.getValue({fieldId: 'createddate' });
 
         var setInstallOrderFlag = false;
         var setDigitalPmtFlag = false;
+        var setChoiceBundle = false;
 
         for (var i = 0; i < lineCount; i++) {
             log.debug('lineCount1', lineCount + ' , i: ' + i);
@@ -113,6 +117,11 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                 setDigitalPmtFlag = true;
             }
 
+            if (itemId == choiceBundleItem) {
+                log.debug("choice bundle item","true");
+                setChoiceBundle = true;
+            }
+
             if (
                 (isKitOrAssembly === 'Kit' || isKitOrAssembly === 'Assembly') &&
                 hasInstallmentFlag === 'Y' &&
@@ -123,150 +132,157 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                 // set this flag to true so that the field can be set at the header level
                 setInstallOrderFlag = true;
 
-                // Perform the necessary actions based on criteria
-                var closedLineId = newRecord.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'id',
-                    line: i
-                });
-                log.debug('Processing line ' + (i + 1), 'Closed Line ID: ' + closedLineId);
+                log.debug("date type",typeof cutoffDate + ":" + typeof creationDate);
+                log.debug("date check",cutoffDate + ":" + creationDate );
+                log.debug("date check2", cutoffDate.getTime() > creationDate.getTime());
+
+                if (cutoffDate.getTime() > creationDate.getTime()) {
+
+                    // Perform the necessary actions based on criteria
+                    var closedLineId = newRecord.getSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'id',
+                        line: i
+                    });
+                    log.debug('Processing line ' + (i + 1), 'Closed Line ID: ' + closedLineId);
 
 
-                // Close the original line
-                
-                // newRecord.setSublistValue({
-                //     sublistId: 'item',
-                //     fieldId: false,
-                //     line: i,
-                //     value: true
-                // });
+                    // Close the original line
+                    
+                    // newRecord.setSublistValue({
+                    //     sublistId: 'item',
+                    //     fieldId: false,
+                    //     line: i,
+                    //     value: true
+                    // });
 
-                // Calculate the "Amount" as Quantity * Rate
-                var quantity = newRecord.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'quantity',
-                    line: i
-                });
-                var rate = newRecord.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'custcol_shpfy_orgnl_prc',
-                    line: i
-                });
+                    // Calculate the "Amount" as Quantity * Rate
+                    var quantity = newRecord.getSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'quantity',
+                        line: i
+                    });
+                    var rate = newRecord.getSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'custcol_shpfy_orgnl_prc',
+                        line: i
+                    });
 
-                var etail = newRecord.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'custcol_celigo_etail_order_line_id',
-                    line: i
-                });
+                    var etail = newRecord.getSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'custcol_celigo_etail_order_line_id',
+                        line: i
+                    });
 
-                var amount = quantity * rate;
+                    var amount = quantity * rate;
 
-                log.debug('Quantity: ' + quantity);
+                    log.debug('Quantity: ' + quantity);
 
-                log.debug('Rate: ' + rate);
-                log.debug('Calculated Amount: ' + amount);
+                    log.debug('Rate: ' + rate);
+                    log.debug('Calculated Amount: ' + amount);
 
-                var taxrate1 = newRecord.getSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'taxrate1',
-                    line: i
-                });
+                    var taxrate1 = newRecord.getSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'taxrate1',
+                        line: i
+                    });
 
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'isclosed',
-                    line: i, 
-                    value: true
-                });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'isclosed',
+                        line: i, 
+                        value: true
+                    });
 
 
-                // Create a new line
-                var j = i;
-                j = j + 1;
-                var newLine = newRecord.insertLine({
-                    sublistId: 'item',
-                    line: j // Insert after the current line
-                });
+                    // Create a new line
+                    var j = i;
+                    j = j + 1;
+                    var newLine = newRecord.insertLine({
+                        sublistId: 'item',
+                        line: j // Insert after the current line
+                    });
 
-                newLine.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'item',
-                    line: j,
-                    value: itemId
-                });
+                    newLine.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'item',
+                        line: j,
+                        value: itemId
+                    });
 
-                newLine.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'rate',
-                    line: j,
-                    value: rate
-                });
+                    newLine.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'rate',
+                        line: j,
+                        value: rate
+                    });
 
-                newLine.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'amount',
-                    line: j,
-                    value: amount
-                });
-                newLine.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'custcol_celigo_etail_order_line_id',
-                    line: j,
-                    value: etail
-                });
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'taxcode',
-                    line: j, // Use newLine here instead of i
-                    value: taxCode
-                });
+                    newLine.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'amount',
+                        line: j,
+                        value: amount
+                    });
+                    newLine.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'custcol_celigo_etail_order_line_id',
+                        line: j,
+                        value: etail
+                    });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'taxcode',
+                        line: j, // Use newLine here instead of i
+                        value: taxCode
+                    });
 
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'location',
-                    line: j, // Use newLine here instead of i
-                    value: location
-                });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'location',
+                        line: j, // Use newLine here instead of i
+                        value: location
+                    });
 
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'class',
-                    line: j, // Use newLine here instead of i
-                    value: lineClass
-                });                
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'class',
+                        line: j, // Use newLine here instead of i
+                        value: lineClass
+                    });                
 
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'quantity',
-                    line: j, // Use newLine here instead of i
-                    value: quantity
-                });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'quantity',
+                        line: j, // Use newLine here instead of i
+                        value: quantity
+                    });
 
-                 newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'custcolcustcol_shpfy_inst_prc',
-                    line: j, // Use newLine here instead of i
-                    value: shpfyPrc
-                });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'custcolcustcol_shpfy_inst_prc',
+                        line: j, // Use newLine here instead of i
+                        value: shpfyPrc
+                    });
 
-                 newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'custcolcustcol_shpfy_num_instlmts',
-                    line: j, // Use newLine here instead of i
-                    value: shpfyInstmts
-                });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'custcolcustcol_shpfy_num_instlmts',
+                        line: j, // Use newLine here instead of i
+                        value: shpfyInstmts
+                    });
 
-                newRecord.setSublistValue({
-                    sublistId: 'item',
-                    fieldId: 'taxrate1',
-                    line: j, // Use newLine here instead of i
-                    value: taxrate1
-                });
+                    newRecord.setSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'taxrate1',
+                        line: j, // Use newLine here instead of i
+                        value: taxrate1
+                    });
 
-                log.debug('Processing line ' + (j), 'New Line created at index: ' + newLine);
-
-                i = i +1;
-               lineCount = lineCount +1;
+                    log.debug('Processing line ' + (j), 'New Line created at index: ' + newLine);
+                    i = i +1;
+                    lineCount = lineCount +1;
+                   
+                }
                 
             }
 
@@ -286,6 +302,11 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
         newRecord.setValue({
             fieldId: 'custbody_cen_jlo_digital_pmt_ord',
             value: setDigitalPmtFlag
+        });
+
+        newRecord.setValue({
+            fieldId: 'custbody_cen_jlo_choice',
+            value: setChoiceBundle
         });
 
         // Save the Sales Order record
