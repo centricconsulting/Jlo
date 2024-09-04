@@ -31,8 +31,10 @@ define(['N/record', 'N/runtime'], function (record, runtime) {
                 isDynamic: false
             });
 
+            invRecord.setSublistValue({ sublistId: 'item', fieldId: 'taxcode', line: tranLine, value: 7649 });
             invRecord.setSublistValue({ sublistId: 'item', fieldId: 'taxrate1', line: tranLine, value: taxAmt });
 
+            
             // // save the changes to the INV record
             invRecord.save({
                 enableSourcing: true,
