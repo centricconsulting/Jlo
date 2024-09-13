@@ -34,8 +34,8 @@ define(['N/record', 'N/log', 'N/search', 'N/runtime'], function (record, log, se
                         var ifTranDateStr = getIFTranDate(salesOrderId);
                         log.debug("IF Date",ifTranDateStr);
                         if (ifTranDateStr) {
-                            var ifTranDate = new Date(ifTranDateStr);
-                            if (ifTranDate < cutoffDate) {
+                            //var ifTranDate = new Date(ifTranDateStr);
+                            //if (ifTranDate < cutoffDate) {
                                 invoiceRecord.setValue({
                                     fieldId: 'trandate',
                                     value: ifTranDate
@@ -45,7 +45,7 @@ define(['N/record', 'N/log', 'N/search', 'N/runtime'], function (record, log, se
                                     title: 'Updated Invoice Trandate',
                                     details: 'Invoice ID: ' + invoiceRecord.id + ', Sales Order Trandate: ' + ifTranDate
                                 });
-                            }
+                            //}
                         } else if (salesOrderTrandate < cutoffDate) {
                             log.debug("enter check");
 
