@@ -2,13 +2,14 @@
  * @NApiVersion 2.x
  * @NScriptType MapReduceScript
  */
-define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime) {
+define(['N/record', 'N/search', 'N/runtime', 'N/email', 'N/url'], function (record, search, runtime, email, url) {
 
     function getInputData() {
 
         var originalItem = runtime.getCurrentScript().getParameter({ name: 'custscript_original_item' });
         var replacementItem = runtime.getCurrentScript().getParameter({ name: 'custscript_replacement_item' });
         var transactionDate = runtime.getCurrentScript().getParameter({ name: 'custscript_tran_date' });
+
         transactionDate = formatISODateToMMDDYYYY(transactionDate)
         log.debug('transactionDate', transactionDate);
 
@@ -22,8 +23,8 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                     "AND",
                     ["item", "anyof", originalItem],
                     "AND",
-                    ["internalidnumber", "equalto", "2160326"], //Remove once done testing
-                    "AND",
+                    //["internalidnumber", "equalto", "3116248"], //Remove once done testing
+                    //"AND",
                     ["item", "noneof", replacementItem],
                     "AND",
                     ["trandate", "after", transactionDate]
@@ -45,14 +46,35 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
     }
 
     function map(context) {
-
-
         var contextValues = JSON.parse(context.value)
         log.debug('contextValues', contextValues);
 
         var recordId = contextValues.values["GROUP(internalid)"].value;
         log.debug('recordId', recordId);
         var recordType = contextValues.values["GROUP(type)"].value;
+        log.debug('recordType', recordType);
+
+        context.write({
+            key: recordId, 
+            value: { 
+                recordType : recordType
+            }
+        });
+    }
+
+    function reduce(context) {
+        log.debug("reduce entered",context.key);
+
+        //var contextValues = JSON.parse(context.value)
+        //log.debug('contextValues', contextValues);
+
+        //var recordId = contextValues.values["GROUP(internalid)"].value;
+        var recordId = context.key;
+        log.debug('recordId', recordId);
+
+        //var recordType = contextValues.values["GROUP(type)"].value;
+        log.debug("context value",context.values[0]);
+        var recordType = JSON.parse(context.values[0]).recordType;
         log.debug('recordType', recordType);
 
         var stType;
@@ -77,10 +99,25 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                 isDynamic: false
             });
 
+            // context.write({
+            //     key: recordId,
+            //     value:  {   
+            //         status : "No Associated Sales Order"    
+            //     }
+            // });
+            // return;
+            //throw new Error ("Ron Error");
+
             var createdFromId = rec.getValue('createdfrom');
 
             if (hasRelatedCreditMemo(recordId)) {
                 log.debug('Skipping Invoice', 'Invoice ID: ' + recordId + ' has a related Credit Memo.');
+                context.write({
+                    key: recordId,
+                    value:  {   
+                        status : "Credit Memo Exists"    
+                    }
+                });
                 return; // Skip this iteration
             }
 
@@ -108,7 +145,8 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                         toType: record.Type.INVOICE
                     });
                     //Potentially need to set AR Account on Newly Created Invoice
-                    newInvoice.setValue('account', 119); //Might beed to look into this
+                    var account = runtime.getCurrentScript().getParameter({ name: 'custscript_new_account' });
+                    newInvoice.setValue('account', account); //Might beed to look into this
                     newInvoice.setValue('trandate', soUpdatedDate);
                     var newInvoiceSaved = newInvoice.save();
                     if (newInvoiceSaved) {
@@ -119,20 +157,180 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                         //     fromType: record.Type.INVOICE,
                         //     fromId: newInvoiceSaved,
                         //     toType: record.Type.CUSTOMER_PAYMENT
+                        context.write({
+                            key: createdFromId,
+                            value:  {   
+                                status : "Sales Order Processed"    
+                            }
+                        });
+                    } else {
+                        context.write({
+                            key: createdFromId,
+                            value:  {   
+                                status : "Invoice Not Created"    
+                            }
+                        });
                     }
                 }
+            } else {
+                context.write({
+                    key: recordId,
+                    value:  {   
+                        status : "No Associated Sales Order"    
+                    }
+                });
             }
+
         } catch (e) {
             log.error('Error processing Invoice', e.message);
+            throw e;
         }
 
     }
 
     function summarize(summary) {
         summary.mapSummary.errors.iterator().each(function (key, error) {
-            log.error('Map Error for Key:' + key + ', Error: ' + error);
+            log.error('Map Error for Key:' + key, 'Error: ' + error);
             return true;
         });
+
+        summary.reduceSummary.errors.iterator().each(function (key, error) {
+            log.error('Reduce Error for Key:' + key,'Error: ' + error);
+            return true;
+        });
+
+        sendSummaryEmail(summary);
+    }
+
+
+    function sendSummaryEmail (summary) {
+        log.debug("enter sendSummaryEmail");
+        var recordsList = '';
+        var errorList = '';
+        var exceptionList = '';
+        var refundList = '';
+
+
+        // make this work like the reduce errors below
+        summary.mapSummary.errors.iterator().each(function(key, error) {
+            //log.error('Map Stage Error', 'Key: ' + key + ' Error: ' + error);
+            exceptionList +=  //'<a href='+link+'>' + 
+                'Invoice Internal Id (Map) : ' 
+                + key
+                + ":"
+                + error
+                +'</a><br>'
+            return true;
+        });
+
+        summary.reduceSummary.errors.iterator().each(function(key, error) {
+            //log.error('Map Stage Error', 'Key: ' + key + ' Error: ' + error);
+            exceptionList +=  //'<a href='+link+'>' + 
+                'Invoice Internal Id (Reduce) : ' 
+                + key
+                + ":"
+                + error
+                +'</a><br>'
+            return true;
+        });
+
+        // go through the output 
+        summary.output.iterator().each(function (key, value) {
+            log.debug("key:value",key+":"+value);
+            var data = JSON.parse(value);
+
+            // var soLink = url.resolveRecord({
+            //     recordType: 'salesorder',
+            //     recordId: key,
+            //     isEditMode: false
+            // });
+
+
+
+            // no problems applying digital payments
+            // if (data.status === "Success" && 
+            //     (data.lineStatus === null || data.lineStatus.length === 0)) {
+            //     var invLink = url.resolveRecord({
+            //         recordType: 'invoice',
+            //         recordId: data.invoiceId,
+            //         isEditMode: false
+            //     });
+
+            //     recordsList += '<a href='+invLink+'>' 
+            //     + data.invoiceId
+            //     + '</a>'
+            //     + ' created from <a href=' + soLink + '> '+ key + '</a><br>';
+
+            // // problems applying the installment payments
+            // } else if (data.status === "Success") {
+            //     for (i=0; i < data.lineStatus.length; i++) {
+            //         errorList += '<a href='+soLink+'>' 
+            //         + key
+            //         + '</a> encountered the following errors: ' 
+            //         + JSON.stringify(data.lineStatus[i]) 
+            //         + '<BR>';
+            //     }
+
+            // skipping due to a customer refund
+            //} else 
+            if (data.status === "Credit Memo Exists") {
+                var invLink = url.resolveRecord({
+                    recordType: 'invoice',
+                    recordId: key,
+                    isEditMode: false
+                });
+                refundList += '<a href='+invLink+'>' 
+                + key
+                + '</a>'
+                + ' was skipped due to a credit memo<br>';
+            }
+            else if (data.status === "Sales Order Processed") {
+                var invLink = url.resolveRecord({
+                    recordType: 'salesorder',
+                    recordId: key,
+                    isEditMode: false
+                });
+                recordsList += '<a href='+invLink+'>' 
+                     + key
+                     + '</a><br>';
+
+            // other
+            } else {
+                exceptionList += '<a href='+invLink+'>' 
+                + key
+                + '</a>'
+                + ' was skipped due to an exception: ' 
+                + data.status 
+                + '<br>';
+            }
+            
+            return true;
+        });
+
+        // get these as parameters
+        //var authorEmail = runtime.getCurrentScript().getParameter('custscript_jlo_sub_inv_author2');
+        //var recipientEmail = runtime.getCurrentScript().getParameter('custscript_jlo_sub_inv_receive2');
+        var authorEmail = 1474;
+        var recipientEmail = 1474;
+
+        log.debug('params', 'authorEmail = '+authorEmail+',  recipientEmail = '+recipientEmail)
+
+        var bodyText =  'Invoice Item Fix process has completed.<br><br><b>List of Sales Order records with a new invoice:</b><br>' + recordsList + '';
+        if (refundList) {
+            bodyText += '<br /><br /><b>These invoices have a refund attached and were not processed:</b><br />' + refundList + '';
+        }
+        if (exceptionList) {
+            bodyText += '<br /><br /><b>Exceptions encountered:</b><br />' + exceptionList + '';
+        }
+        log.debug("test",bodyText);
+
+        email.send({
+            author: authorEmail,
+            recipients: recipientEmail,
+            subject: 'Invoice Item Fix process has completed',
+            body: bodyText,
+        })
+        log.debug("exit sendSummaryEmail");
     }
 
     /**
@@ -254,7 +452,7 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                     var quantity = salesOrderRecord.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: i });
                     var amount = salesOrderRecord.getSublistValue({ sublistId: 'item', fieldId: 'amount', line: i });
                     var taxCode = salesOrderRecord.getSublistValue({ sublistId: 'item', fieldId: 'taxcode', line: i });
-                    var tax = salesOrderRecord.getSublistValue({ sublistId: 'item', fieldId: 'taxamount', line: i });
+                    var tax = salesOrderRecord.getSublistValue({ sublistId: 'item', fieldId: 'taxrate1', line: i });
 
                     log.debug('Original Values', {
                         rate: rate,
@@ -270,7 +468,7 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
                     salesOrderRecord.setSublistValue({ sublistId: 'item', fieldId: 'quantity', value: quantity, line: i });
                     salesOrderRecord.setSublistValue({ sublistId: 'item', fieldId: 'amount', value: amount, line: i });
                     salesOrderRecord.setSublistValue({ sublistId: 'item', fieldId: 'taxcode', value: taxCode, line: i });
-                    salesOrderRecord.setSublistValue({ sublistId: 'item', fieldId: 'taxamount', value: tax, line: i });
+                    salesOrderRecord.setSublistValue({ sublistId: 'item', fieldId: 'taxrate1', value: tax, line: i });
 
                 }
             }
@@ -291,6 +489,7 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
     return {
         getInputData: getInputData,
         map: map,
+        reduce: reduce,
         summarize: summarize
     };
 });
