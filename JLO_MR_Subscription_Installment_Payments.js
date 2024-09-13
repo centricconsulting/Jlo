@@ -23,15 +23,27 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     "AND",
                     ["customermain.isperson", "is", "T"],
                     "AND",
+                    ["status","anyof","SalesOrd:G"], 
+                    "AND",
                     // removed for Ron testing - need to add back
                     //["datecreated", "onorafter", "01/08/2024 12:00 am"], //CHANGE
                     //"AND",
                     ["trandate", "onorafter", dateParameter],
                     "AND",
-                    [[["custbody_cen_jlo_digital_pmt_ord", "is", "T"], "OR", ["custbody_cen_jlo_instal_ord", "is", "T"], "OR", ["custbody_cen_jlo_choice", "is", "T"]], "AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
+                    // first run, make this false so we only do orders
+                    // normally it should be "T"    
+                    ["custbody_cen_jlo_digital_pmt_ord", "is", "F"], 
                     "AND",
-                    //["internalid", "anyof", "1807133"],
-                        ["internalid", "anyof", "2156143"],
+                    [[
+                        //["custbody_cen_jlo_digital_pmt_ord", "is", "T"], 
+                        //"OR", 
+                        ["custbody_cen_jlo_instal_ord", "is", "T"], 
+                        "OR", ["custbody_cen_jlo_choice", "is", "T"]
+                    ], 
+                    "AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
+                    //"AND",
+                    //["internalid", "anyof", "3136433"],
+                    //    ["internalidnumber", "greaterthan", "3114641"],
                     // ["internalid", "anyof", "459421", "809546", "1209981", "1242494", "1665360", "2000019", "775696", "1132017", "1537880"],
                     "AND",
 
@@ -206,7 +218,12 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     log.debug('digitalPaymentSO', digitalPaymentSO)
                     var shippingProcessed = false
 
+                    var errorInLine = false;
+
                     for (var i = 0; i < lineCount; i++) {
+
+                        errorInLine = false;
+
                         // Get the item value
                         var shopifyOrigOrderId = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'custcolcustcol_shpfy_orgnl_order', line: i });
                         log.debug('shopifyOrigOrderId', shopifyOrigOrderId)
@@ -242,6 +259,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                         error: 'Original SO for Digital Payment does not have a link Invoice #1 on the matching line.',
                                         soID: soID
                                     });
+                                    errorInLine = true;
                                     continue;
                                 }
 
@@ -299,6 +317,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                         error: 'Credit Memo created from ' + soID + ' was not linked to ' + settingErrorDetails.join(', '),
                                         soID: soID
                                     });
+                                    errorInLine = true;
                                 }
 
                             } else {
@@ -306,18 +325,20 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                     error: 'Original SO for Digital Payment is Prior to Date Parameter. Original SO: ' + new Date(soIdDate) + ', Digital Payment Date: ' + new Date(dateParameter),
                                     soID: soID
                                 });
+                                errorInLine = true;
                                 continue;
                             }
 
                         }
                     }
-                    if (settingErrorDetails.length < 1 && newCreditMemo) {
+                    if (!errorInLine && newCreditMemo) {
                         loadedSO.setValue({ fieldId: 'custbody_sub_install_processed', value: true, ignoreFieldChange: true });
                     }
                     loadedSO.save();
                 }
             }
         } catch (e) {
+            log.error(e.message,e.stack);
             // Log the error and write it to the context
             result.errors.push({
                 error: e.message,
