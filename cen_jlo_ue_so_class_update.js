@@ -33,6 +33,10 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
             if (scriptContext.type === scriptContext.UserEventType.CREATE 
                 || scriptContext.type === scriptContext.UserEventType.EDIT
                 || scriptContext.type === scriptContext.UserEventType.XEDIT) {
+
+                var salesOrderId = scriptContext.newRecord.id;
+                // Load the Sales Order record 
+                var newRecord = record.load({ type: record.Type.SALES_ORDER, id: salesOrderId });
         
                 var continuityClass = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_continuity'});
                 var instagramClass = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_insta'});
@@ -40,7 +44,7 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
                 var shopifyChannel = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_chan'});
                 var corporateLocation = runtime.getCurrentScript().getParameter({name: 'custscript_cen_jlo_corp_loc'});
         
-                var newRecord = scriptContext.newRecord;
+                //var newRecord = scriptContext.newRecord;
                 log.debug("enter after submit",newRecord.getValue({ fieldId: 'id'}));
                 var lineCount = newRecord.getLineCount({ sublistId: 'item' });
         
@@ -181,15 +185,27 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
                     //     fieldId: 'custcol_celigo_etail_order_line_id',
                     //     line: i
                     // });
-                    
+                    log.debug("before class set",newRecord.getSublistValue({
+                        sublistId: 'item',
+                        fieldId: 'class',
+                        line: i
+                    }));
+
                     //if (!lineClass && orderLineId != null) {
                         // Set the Class value for the line
                         newRecord.setSublistValue({
                             sublistId: 'item',
                             fieldId: 'class',
                             line: i,
-                            value: classValue
+                            value: classValue,
+                            ignoreFieldChange: true
                         });
+
+                    log.debug("after class set",newRecord.getSublistValue({
+                            sublistId: 'item',
+                            fieldId: 'class',
+                            line: i
+                        }));
                     //}
 
                 }
@@ -241,7 +257,7 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
                 //     }
                 // }
             }
-
+            var savedOrderId = newRecord.save();
         } catch (e) {
             log.error(scriptContext.newRecord.getValue({ fieldId: 'id'}),e + ":" + e.message);
         }
@@ -249,6 +265,6 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
 
     
     return {
-        beforeSubmit: beforeSubmitSetClass
+        afterSubmit: beforeSubmitSetClass
     };
 });
