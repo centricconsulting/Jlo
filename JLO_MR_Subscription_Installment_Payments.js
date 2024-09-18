@@ -42,8 +42,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                         ["custbody_cen_jlo_choice", "is", "T"]
                     ], 
                     //"AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
-                    //"AND",
-                    //["internalid", "anyof", "3017922"],
+                    "AND",
+                    ["internalid", "anyof", "3115070"],
                     //["internalidnumber", "greaterthan", "3135607"],
                     // ["internalid", "anyof", "459421", "809546", "1209981", "1242494", "1665360", "2000019", "775696", "1132017", "1537880"],
                     "AND",
@@ -101,6 +101,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
             var emailAuthorParam = runtime.getCurrentScript().getParameter('custscript_jlo_email_author');
             var emailSendParam = runtime.getCurrentScript().getParameter('custscript_jlo_email_send');
             var installmentPaymentItemParam = runtime.getCurrentScript().getParameter('custscript_jlo_install_payment_item');
+            var oldInstallmentPaymentItemParam = runtime.getCurrentScript().getParameter('custscript_jlo_old_installment');
             var shippingItemParam = runtime.getCurrentScript().getParameter('custscript_jlo_shipping_item');
             var choiceBundleItemParam = runtime.getCurrentScript().getParameter('custscript_jlo_choice_bundle');
             var invoiceTwoTerms = runtime.getCurrentScript().getParameter('custscript_jlo_invoice_two_terms');
@@ -159,7 +160,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 //  -- target invoice must have invoice #1 populated
                 //  -- target invoice must be prior to the date parameter
                 // if not, log an error and skip this one
-                result = checkSOCanBeProcessed(digitalPaymentSO,loadedSO,dateParameter, result);
+                result = checkSOCanBeProcessed(digitalPaymentSO,loadedSO,dateParameter, oldInstallmentPaymentItemParam, result);
                 log.debug("check invoice process",result);
                 if (result.errors.length > 0) {
                     continue;
@@ -520,7 +521,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
     }
 
 
-    function checkSOCanBeProcessed(digitalPaymentSO, loadedSO, dateParameter, result) {
+    function checkSOCanBeProcessed(digitalPaymentSO, loadedSO, dateParameter, oldInstallmentPaymentItemParam, result) {
         var lineCount = loadedSO.getLineCount({ sublistId: 'item' });
         if (digitalPaymentSO == 'T') {
             log.debug('digitalPaymentSO', digitalPaymentSO)
@@ -554,7 +555,15 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                             subSOID: originalSOData.matchingSOID
                         });
                     }
-                } 
+                }                     
+
+                // if the sales order is still using the old installment payment item, the data fix has not yet run for this so we need to skip it for now
+                if (loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i }) === oldInstallmentPaymentItemParam) {
+                    result.errors.push({
+                        error: 'Old Installment Payment line is being used - the data fix must run on this sales order before it can be processed.',
+                        soID: loadedSO.getValue({ fieldId: 'id' })
+                    });
+                }
             }
         } else {
             // do nothing
@@ -840,7 +849,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
             columns: [
                 search.createColumn({ name: "internalid", label: "Internal ID" }),
                 search.createColumn({ name: "trandate", label: "Date" }),
-                search.createColumn({ name: "custbody_sub_install_processed", label: "Processed" })
+                search.createColumn({ name: "custbody_sub_install_processed", label: "Processed" }),
+                search.createColumn({ name: "item", label: "item" })
             ]
         });
 
@@ -850,6 +860,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
             matchingSOID = result.getValue('internalid');
             soIDDate = result.getValue('trandate');
             soProcessed = result.getValue('custbody_sub_install_processed');
+            item = result.getValue('item');
             return false; // Exit the loop after the first result
         });
 
