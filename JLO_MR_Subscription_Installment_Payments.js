@@ -32,21 +32,21 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     "AND",
                     // first run, make this false so we only do orders
                     // normally it should be "T"    
-                    ["custbody_cen_jlo_digital_pmt_ord", "is", "F"], 
-                    "AND",
-                    [[
-                        //["custbody_cen_jlo_digital_pmt_ord", "is", "T"], 
-                        //"OR", 
-                        ["custbody_cen_jlo_instal_ord", "is", "T"], 
-                        "OR", ["custbody_cen_jlo_choice", "is", "T"]
-                    ], 
-                    "AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
+                    //["custbody_cen_jlo_digital_pmt_ord", "is", "F"], 
                     //"AND",
-                    //["internalid", "anyof", "3136433"],
-                    //    ["internalidnumber", "greaterthan", "3114641"],
+                    [
+                        ["custbody_cen_jlo_digital_pmt_ord", "is", "T"], 
+                        "OR", 
+                        ["custbody_cen_jlo_instal_ord", "is", "T"], 
+                        "OR", 
+                        ["custbody_cen_jlo_choice", "is", "T"]
+                    ], 
+                    //"AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
+                    //"AND",
+                    //["internalid", "anyof", "3017922"],
+                    //["internalidnumber", "greaterthan", "3135607"],
                     // ["internalid", "anyof", "459421", "809546", "1209981", "1242494", "1665360", "2000019", "775696", "1132017", "1537880"],
                     "AND",
-
                     ["custbody_sub_install_processed", "is", "F"]
                 ],
             columns:
@@ -88,7 +88,12 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
     function reduce(context) {
         var result = {
-            errors: []
+            errors: [],
+            soType: "",
+            invoice1: "",
+            invoiceF2: "",
+            invoiceF3: "",
+            paymentList: []
         };
 
 
@@ -149,6 +154,18 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     continue; // Skip to the next context key
                 }
 
+                // since we may have SOs that are both subscription/choice and digital installment, check to see if you can process all of the digital installment payments
+                // on this sales order
+                //  -- target invoice must have invoice #1 populated
+                //  -- target invoice must be prior to the date parameter
+                // if not, log an error and skip this one
+                result = checkSOCanBeProcessed(digitalPaymentSO,loadedSO,dateParameter, result);
+                log.debug("check invoice process",result);
+                if (result.errors.length > 0) {
+                    continue;
+                }
+                //continue; // for testing only
+
                 if (subscriptionSO == 'T' || choiceBundleSO == 'T') {
                     // Determine what forecasts need to be created
                     var forecastResult = checkExistingForecast(loadedSO, lineCount);
@@ -158,14 +175,14 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     var invoiceForecastedThree = forecastResult.invoiceForecastedThree;
 
                     if (forecastResult.createInvoiceTwo) {
-                        invoiceForecastedTwo = copyAndModifyInvoice(invoiceOneId, invoiceTwoTerms, shippingItemParam);
+                        invoiceForecastedTwo = copyAndModifyInvoice(invoiceOneId, invoiceTwoTerms, shippingItemParam, installmentPaymentItemParam);
                         log.audit('Created Forecasted Invoice #2', invoiceForecastedTwo);
                     } else {
                         log.audit('Forecasted Invoice #2 already exists!', invoiceForecastedTwo);
                     }
 
                     if (forecastResult.createInvoiceThree) {
-                        invoiceForecastedThree = copyAndModifyInvoice(invoiceOneId, invoiceThreeTerms, shippingItemParam);
+                        invoiceForecastedThree = copyAndModifyInvoice(invoiceOneId, invoiceThreeTerms, shippingItemParam, installmentPaymentItemParam);
                         log.audit('Created Forecasted Invoice #3', invoiceForecastedThree);
                     } else {
                         log.audit('Forecasted Invoice #3 already exists!', invoiceForecastedThree);
@@ -210,6 +227,10 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                         loadedSO.setValue({ fieldId: 'custbody_sub_install_processed', value: true, ignoreFieldChange: true });
                     }
                     loadedSO.save();
+                    result.invoice1 = invoiceOneId;
+                    result.invoiceF2 = invoiceForecastedTwo;
+                    result.invoiceF3 = invoiceForecastedThree;
+                    result.soType = "subscription";
                 }
 
 
@@ -235,7 +256,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                             var originalSO = originalSOData.matchingSOID
                             var soIdDate = originalSOData.soIDDate
 
-                            if (new Date(soIdDate) >= new Date(dateParameter)) {
+                            //if (new Date(soIdDate) >= new Date(dateParameter)) {
 
                                 var shopifyInstallNum = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'custcolcustcol_shpfy_inst_num', line: i });
                                 var digitalPaymentRate = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i });
@@ -318,16 +339,23 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                         soID: soID
                                     });
                                     errorInLine = true;
+                                } else {
+                                    result.paymentList.push({
+                                        installmentPaymentNum: shopifyInstallNum,
+                                        appliedToSO: originalSO,
+                                        creditMemo: newCreditMemo,
+                                        forecastedInvoice: forecastedInvoiceToConvert
+                                    });
                                 }
 
-                            } else {
-                                result.errors.push({
-                                    error: 'Original SO for Digital Payment is Prior to Date Parameter. Original SO: ' + new Date(soIdDate) + ', Digital Payment Date: ' + new Date(dateParameter),
-                                    soID: soID
-                                });
-                                errorInLine = true;
-                                continue;
-                            }
+                            // } else {
+                            //     result.errors.push({
+                            //         error: 'Original SO for Digital Payment is Prior to Date Parameter. Original SO: ' + new Date(soIdDate) + ', Digital Payment Date: ' + new Date(dateParameter),
+                            //         soID: soID
+                            //     });
+                            //     errorInLine = true;
+                            //     continue;
+                            // }
 
                         }
                     }
@@ -335,6 +363,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                         loadedSO.setValue({ fieldId: 'custbody_sub_install_processed', value: true, ignoreFieldChange: true });
                     }
                     loadedSO.save();
+                    result.soType = "digital";
                 }
             }
         } catch (e) {
@@ -357,13 +386,25 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
     function summarize(summary) {
         try {
             var errorList = [];
-            var restartKeys = [];
+            //var restartKeys = [];
+            var subscriptionList = [];
+            var digitalList = [];
 
             summary.output.iterator().each(function (key, value) {
                 try {
                     var result = JSON.parse(value);
+                    log.debug("summary result",result);
                     if (result.errors && result.errors.length > 0) {
                         result.errors.forEach(function (errorObj) {
+                            var subLink;
+                            if (errorObj.subSOID) {
+                                subLink = url.resolveRecord({
+                                    recordType: 'salesorder',
+                                    recordId: errorObj.subSOID,
+                                    isEditMode: false
+                                })
+                            }
+                            log.debug("subLink",subLink);
                             errorList.push({
                                 error: errorObj.error,
                                 stack: errorObj.stack,
@@ -372,9 +413,81 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                     recordType: 'salesorder',
                                     recordId: errorObj.soID,
                                     isEditMode: false
-                                })
+                                }),
+                                subLink: subLink
                             });
                         });
+                    } else {
+                        if (result.soType === "subscription") {
+                            subscriptionList.push({
+                                soID: key,
+                                soLink: url.resolveRecord({
+                                    recordType: 'salesorder',
+                                    recordId: key,
+                                    isEditMode: false
+                                }),
+                                invLink1: url.resolveRecord({
+                                    recordType: 'invoice',
+                                    recordId: result.invoice1,
+                                    isEditMode: false
+                                }),
+                                invLinkF2: url.resolveRecord({
+                                    recordType: 'invoice',
+                                    recordId: result.invoiceF2,
+                                    isEditMode: false
+                                }),
+                                invLinkF3: url.resolveRecord({
+                                    recordType: 'invoice',
+                                    recordId: result.invLinkF3,
+                                    isEditMode: false
+                                }),                                                                
+                            });
+                        } else if (result.soType === "digital") {
+                            result.paymentList.forEach(function (pmt) {
+                                digitalList.push({
+                                    soID: key,
+                                    soLink: url.resolveRecord({
+                                        recordType: 'salesorder',
+                                        recordId: key,
+                                        isEditMode: false
+                                    }),
+                                    installmentPaymentNum: pmt.installmentPaymentNum,
+                                    subLink: url.resolveRecord({
+                                        recordType: 'salesorder',
+                                        recordId: pmt.appliedToSo,
+                                        isEditMode: false
+                                    }),
+                                    creditLink: url.resolveRecord({
+                                        recordType: 'creditmemo',
+                                        recordId: pmt.creditMemo,
+                                        isEditMode: false
+                                    }),
+                                    forecastedInvLink: url.resolveRecord({
+                                        recordType: 'invoice',
+                                        recordId: pmt.forecastedInvoice,
+                                        isEditMode: false
+                                    })
+                                });
+                            });
+                        } else {
+                            errorList.push({
+                                error: "Unknown order type",
+                                stack: "",
+                                soID: key,
+                                link: url.resolveRecord({
+                                    recordType: 'salesorder',
+                                    recordId: key,
+                                    isEditMode: false
+                                })
+                            });
+                        }
+                        // invoice1: "",
+                        // invoiceF2: "",
+                        // invoiceF3: "",
+                        // invoice2: "",
+                        // invoice3: "",
+                        // creditF2: "",
+                        // creditF3: ""
                     }
 
                 } catch (e) {
@@ -386,16 +499,17 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 return true;
             });
 
-            // Process the errors collected
-            if (errorList.length > 0) {
-                log.debug('errorList', errorList);
-                sendErrorReport(errorList, restartKeys);
-            } else {
-                log.audit({
-                    title: 'Summarize Phase',
-                    details: 'No errors found'
-                });
-            }
+            // // Process the errors collected
+            // if (errorList.length > 0) {
+            //     log.debug('errorList', errorList);
+            //     sendErrorReport(errorList, restartKeys);
+            // } else {
+            //     log.audit({
+            //         title: 'Summarize Phase',
+            //         details: 'No errors found'
+            //     });
+            // }
+            sendSummaryEmail(subscriptionList,digitalList,errorList);
 
         } catch (e) {
             log.error({
@@ -405,6 +519,48 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
         }
     }
 
+
+    function checkSOCanBeProcessed(digitalPaymentSO, loadedSO, dateParameter, result) {
+        var lineCount = loadedSO.getLineCount({ sublistId: 'item' });
+        if (digitalPaymentSO == 'T') {
+            log.debug('digitalPaymentSO', digitalPaymentSO)
+                        
+            for (var i = 0; i < lineCount; i++) {
+
+                // Get the item value
+                var shopifyOrigOrderId = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'custcolcustcol_shpfy_orgnl_order', line: i });
+                log.debug('shopifyOrigOrderId', shopifyOrigOrderId)
+
+                if (shopifyOrigOrderId) {
+                    //Find Original SO with shopifyInstallNum
+                    var originalSOData = findOriginalSO(shopifyOrigOrderId)
+                    log.debug('originalSOData', originalSOData)
+                    // var soIdDate = originalSOData.soIDDate
+
+                    // if the subscription sales order date is prior to the date passed via parameter, do not process the record.
+                    // if (new Date(soIdDate) < new Date(dateParameter)) {
+                    //     result.errors.push({
+                    //         error: 'Original SO for Digital Payment is Prior to Date Parameter. Original SO: ' + new Date(soIdDate) + ', Digital Payment Date: ' + new Date(dateParameter),
+                    //         soID: loadedSO.getValue({ fieldId: 'id' }),
+                    //         subSOID: originalSOData.matchingSOID
+                    //     });
+                    // }
+
+                    // if the subscription sales order has not been processed (check the processed flag), then do not process the record.
+                    if (!originalSOData.soProcessed) {
+                        result.errors.push({
+                            error: 'Subscription SO for Digital Payment does not have a link Invoice #1 on the matching line.',
+                            soID: loadedSO.getValue({ fieldId: 'id' }),
+                            subSOID: originalSOData.matchingSOID
+                        });
+                    }
+                } 
+            }
+        } else {
+            // do nothing
+        }
+        return result;
+    }
 
     //HELPER FUNCTIONS
 
@@ -523,7 +679,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
     * @param {number} shippingItemParam - The shipping item that carries into newly created records. This is a parameter in the main function.
     * @returns {number|null} - The internal ID of the created forecasted invoice, or null if an error occurs.
     */
-    function copyAndModifyInvoice(originalInvoice, netValue, shippingItemParam) {
+    function copyAndModifyInvoice(originalInvoice, netValue, shippingItemParam, installmentItemParam) {
 
         try {
             // Copy the original invoice
@@ -572,6 +728,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
 
                 var isShipping = (String(item).trim() === String(shippingItemParam).trim());
+                var isInstallmentItem = (String(item).trim() === String(installmentItemParam).trim());
 
                 var isSubscription = forecastedInvoice.getSublistValue({
                     sublistId: 'item',
@@ -587,8 +744,10 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
                 log.debug('Line ' + (k + 1), 'Item: ' + item + ', isSubscription: ' + isSubscription + ', isChoiceBundle: ' + isChoiceBundle + ', isShipping: ' + isShipping);
 
-
-                if (!isSubscription && !isChoiceBundle && !isShipping) {
+                if (isInstallmentItem) {
+                    log.debug('Removing Line ' + (k + 1), 'Item: ' + item + ', isInstallment: ' + isInstallmentItem);
+                    forecastedInvoice.removeLine({ sublistId: 'item', line: k });
+                } else if (!isSubscription && !isChoiceBundle && !isShipping) {
                     log.debug('Removing Line ' + (k + 1), 'Item: ' + item + ', isSubscription: ' + isSubscription + ', isChoiceBundle: ' + isChoiceBundle + ', isShipping: ' + isShipping);
                     forecastedInvoice.removeLine({ sublistId: 'item', line: k });
                 } else {
@@ -680,7 +839,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
             ],
             columns: [
                 search.createColumn({ name: "internalid", label: "Internal ID" }),
-                search.createColumn({ name: "trandate", label: "Date" })
+                search.createColumn({ name: "trandate", label: "Date" }),
+                search.createColumn({ name: "custbody_sub_install_processed", label: "Processed" })
             ]
         });
 
@@ -688,7 +848,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
         salesOrderSearchObj.run().each(function (result) {
             matchingSOID = result.getValue('internalid');
-            soIDDate = result.getValue('trandate')
+            soIDDate = result.getValue('trandate');
+            soProcessed = result.getValue('custbody_sub_install_processed');
             return false; // Exit the loop after the first result
         });
 
@@ -697,10 +858,11 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
             return null;
         }
 
-        log.debug("matchingSOID", matchingSOID);
+        log.debug("matchingSOID", matchingSOID + ":" + soProcessed);
         return {
             matchingSOID: matchingSOID,
-            soIDDate: soIDDate
+            soIDDate: soIDDate,
+            soProcessed: soProcessed
         }
     }
 
@@ -1298,6 +1460,43 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
         }
     }
 
+    function sendSummaryEmail(subscriptionList, digitalList, errorList) {
+        try {
+            var emailRecipient = runtime.getCurrentScript().getParameter('custscript_jlo_email_send');
+            var emailSubject = 'Subscription Script Summary Report';
+            var emailBody = 'Dear Team, the following results from the Subscriptoin Script:<BR>';
+            emailBody += generateSuccessEmailBody(subscriptionList);
+            emailBody += '<BR><BR>The following digital payments were processed during the execution of the Map/Reduce script:<BR>';
+            emailBody += generateDigitalEmailBody(digitalList);
+            emailBody += '<BR><BR>The following errors occurred during the execution of the Map/Reduce script:<BR>';
+            emailBody += generateErrorEmailBody(errorList);
+
+
+            if (emailRecipient) {
+                email.send({
+                    author: runtime.getCurrentScript().getParameter('custscript_jlo_email_author'),
+                    recipients: emailRecipient,
+                    subject: emailSubject,
+                    body: emailBody
+                });
+                log.audit({
+                    title: 'Email Report Sent',
+                    details: 'Email report email has been sent successfully.'
+                });
+            } else {
+                log.error({
+                    title: 'Email Recipient Not Configured',
+                    details: 'No recipient configured for sending error reports.'
+                });
+            }
+        } catch (e) {
+            log.error({
+                title: 'Error Sending Error Report',
+                details: e
+            });
+        }
+    }
+
 
      /**
      * Generates the body of the error report email.
@@ -1309,19 +1508,45 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
      * 
      * @returns {string} The formatted email body.
      */
-    function generateEmailBody(errorList) {
-        var body = 'Dear Team,\n\nThe following errors occurred during the execution of the Map/Reduce script:\n\n';
+    function generateErrorEmailBody(errorList) {
+        var body = "";
         errorList.forEach(function (error) {
-            body += 'Error: ' + error.error + '\n';
-            body += 'Stack Trace: ' + error.stack + '\n';
-            body += 'Sales Order ID: ' + error.soID + '\n';
-            body += 'Record Link: ' + error.link + '\n\n';
+            body += 'Error: ' + error.error + '<BR>';
+            body += 'Stack Trace: ' + error.stack + '<BR>';
+            body += 'Sales Order ID: ' + error.soID + '<BR>';
+            body += 'Record Link: ' + error.link + '<BR>';
+            if (error.subLink) {
+                body += 'Subscription Link: ' + error.subLink + '<BR>';
+            }
+            body += '<BR>';
         });
 
-        body += '\nBest Regards,\nYour Automation System';
         return body;
     }
 
+    function generateSuccessEmailBody(successList) {
+        var body = "";
+        successList.forEach(function (succItem) {
+            body +=  '<A HREF="' + succItem.soLink + '">Sales Order: </A><BR>';
+            body += '<A HREF="' + succItem.invLink1 + '">-- Invoice #1</A><BR>';
+            body += '<A HREF="' + succItem.invLinkF2  + '">-- Invoice #2 - Forecasted</A><BR>';
+            body += '<A HREF="' + succItem.invLinkF3 + '">-- Invoice #3 - Forecasted</A><BR>';
+        });
+       
+        return body;
+    }
+
+    function generateDigitalEmailBody(digitalList) {
+        var body = "";
+        digitalList.forEach(function (succItem) {
+            body +=  '<A HREF="' + succItem.soLink + '">Sales Order: </A><BR>';
+            body +=  '-- Installment Payment: '  + succItem.installmentPaymentNum + '<BR>';
+            body += '<A HREF="' + succItem.forecastedInvLink + '">-- Forecasted Invoice Credited</A><BR>';
+            body += '<A HREF="' + succItem.creditLink  + '">-- Created Credit Memo</A><BR>';
+        });
+       
+        return body;
+    }
 
     /**
      * Attempts to execute a given operation function with retries.
