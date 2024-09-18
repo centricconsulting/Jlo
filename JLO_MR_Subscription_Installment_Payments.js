@@ -43,7 +43,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     ], 
                     //"AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
                     "AND",
-                    ["internalid", "anyof", "3115070"],
+                    ["internalid", "anyof", "3055371"],
                     //["internalidnumber", "greaterthan", "3135607"],
                     // ["internalid", "anyof", "459421", "809546", "1209981", "1242494", "1665360", "2000019", "775696", "1132017", "1537880"],
                     "AND",
@@ -160,7 +160,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 //  -- target invoice must have invoice #1 populated
                 //  -- target invoice must be prior to the date parameter
                 // if not, log an error and skip this one
-                result = checkSOCanBeProcessed(digitalPaymentSO,loadedSO,dateParameter, oldInstallmentPaymentItemParam, result);
+                result = checkSOCanBeProcessed(digitalPaymentSO, subscriptionSO, loadedSO, dateParameter, oldInstallmentPaymentItemParam, result);
                 log.debug("check invoice process",result);
                 if (result.errors.length > 0) {
                     continue;
@@ -521,8 +521,14 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
     }
 
 
-    function checkSOCanBeProcessed(digitalPaymentSO, loadedSO, dateParameter, oldInstallmentPaymentItemParam, result) {
+    function checkSOCanBeProcessed(digitalPaymentSO, subscriptionSO, loadedSO, dateParameter, oldInstallmentPaymentItemParam, result) {
         var lineCount = loadedSO.getLineCount({ sublistId: 'item' });
+        if (digitalPaymentSO === "T" && subscriptionSO === "T") {
+            result.errors.push({
+                error: 'Sales Order contains both Subscription and Digital Installment Payment - cannot be processed (yet).',
+                soID: loadedSO.getValue({ fieldId: 'id' })
+            });
+        }
         if (digitalPaymentSO == 'T') {
             log.debug('digitalPaymentSO', digitalPaymentSO)
                         
