@@ -43,7 +43,9 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     ], 
                     //"AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
                     "AND",
-                    ["internalid", "anyof", "3055371"],
+                    ["internalid", "anyof", "2162652"],
+                    //["internalid", "anyof", "2161242"], // this is the sub/dig combination
+                    //["internalid", "anyof", "2139012"], // single dig isntal
                     //["internalidnumber", "greaterthan", "3135607"],
                     // ["internalid", "anyof", "459421", "809546", "1209981", "1242494", "1665360", "2000019", "775696", "1132017", "1537880"],
                     "AND",
@@ -51,7 +53,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 ],
             columns:
                 [
-                    search.createColumn({ name: "internalid", label: "Internal ID" }),
+                    search.createColumn({ name: "internalid", label: "Internal ID", sort: search.Sort.ASC }),
                     search.createColumn({ name: "custbody_cen_jlo_choice", label: "Choice Bundle" }),
                     search.createColumn({ name: "custbody_cen_jlo_instal_ord", label: "Installment Order" }),
                     search.createColumn({ name: "custbody_cen_jlo_digital_pmt_ord", label: "Digital Payment Order" }),
@@ -189,7 +191,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                         log.audit('Forecasted Invoice #3 already exists!', invoiceForecastedThree);
                     }
 
-                    var updateOriginalInvoice = setForecastsOnOriginalInvoice(invoiceOneId, invoiceForecastedTwo, invoiceForecastedThree);
+                    var updateOriginalInvoice = setForecastsOnOriginalInvoice(invoiceOneId, invoiceForecastedTwo, invoiceForecastedThree, installmentPaymentItemParam);
                     log.debug('updateOriginalInvoice', updateOriginalInvoice);
 
                     if (!updateOriginalInvoice) {
@@ -207,7 +209,9 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                         var choiceBundleLineSO = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'custcolshpfy_bndl_id', line: i });
                         log.debug(soID + ' Line ' + (i + 1), 'Item: ' + item + ', Subscription Flag: ' + subscriptionFlagLineSO + ', Choice Bundle: ' + choiceBundleLineSO);
 
-                        if (subscriptionFlagLineSO == 'Y' || choiceBundleLineSO) {
+                        // we have to check the item here, since we don't want to set the values in isntallment payments
+                        if ((subscriptionFlagLineSO == 'Y' || choiceBundleLineSO) &&
+                             item != installmentPaymentItemParam) {
                             log.debug('subscriptionFlagLineSO', subscriptionFlagLineSO);
 
                             // Only update the fields if they haven't been set already
@@ -227,7 +231,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     if (invoiceForecastedTwo && invoiceForecastedThree && updateOriginalInvoice) {
                         loadedSO.setValue({ fieldId: 'custbody_sub_install_processed', value: true, ignoreFieldChange: true });
                     }
-                    loadedSO.save();
+                    //loadedSO.save();
                     result.invoice1 = invoiceOneId;
                     result.invoiceF2 = invoiceForecastedTwo;
                     result.invoiceF3 = invoiceForecastedThree;
@@ -313,18 +317,32 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                     log.audit('Credit Memo already exists!', existingCreditMemoField);
                                     newCreditMemo = existingCreditMemoField
                                 }
+
+                                var etailLineId = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: i});
+                                log.debug("etailLineId",etailLineId);
+
                                 // Update this current Sales Order's Invoice with Credit Memo and Current Sales Order's Invoice
-                                var currentInvoiceParams = ['invoice', invoiceOneId, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, 'custcol_jlo_inv_1', originalInvoiceOne, forecastedInvoiceToConvert, forecastedInvoiceToConvertSet]
-                                var currentInvoiceUpdated = attemptWithRetry(updateOriginalRecord, 2, currentInvoiceParams);
+                                // update the specific line here - because is the invoice associated with this sales order, we can match on custcol_celigo_etail_order_line_id
+                                //var currentInvoiceParams = ['invoice', invoiceOneId, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, 'custcol_jlo_inv_1', originalInvoiceOne, forecastedInvoiceToConvert, forecastedInvoiceToConvertSet]
+                                //var currentInvoiceUpdated = attemptWithRetry(updateOriginalRecord, 2, currentInvoiceParams);
+                                var currentInvoiceParams = [ 
+                                        { scriptid: creditMemoFieldId, value: newCreditMemo },
+                                        { scriptid: currentSOInvoiceFieldID, value: invoiceOneId},
+                                        { scriptid:'custcol_jlo_inv_1', value: originalInvoiceOne},
+                                        { scriptid: forecastedInvoiceToConvertSet, value: forecastedInvoiceToConvert}];
+                                var currentInvoiceUpdated = updateRecordeTailId('invoice', invoiceOneId, etailLineId, currentInvoiceParams);
                                 log.debug('currentInvoiceUpdated', currentInvoiceUpdated);
 
                                 //update Original Sales Order with Credit Memo and Current Sales Order's Invoice
-                                var originalSOParams = ['salesorder', originalSO, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId]
+                                var originalSOParams = ['salesorder', originalSO, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, installmentPaymentItemParam]
                                 var originalSOUpdated = attemptWithRetry(updateOriginalRecord, 2, originalSOParams);
                                 log.debug('originalSOUpdated', originalSOUpdated);
 
                                 //update the Original Saless Order's Invoice with Credit Memo and Current Sales Order's Invoice
-                                var originalSOInvoiceParams = ['invoice', originalInvoiceOne, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId]
+                                // this needs to match based on rate since we don't have an item to match against
+                                // but this needs to match the line on the sales order, not sure how to do that
+                                // Mazuk
+                                var originalSOInvoiceParams = ['invoice', originalInvoiceOne, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, installmentPaymentItemParam]
                                 var originalSOInvoiceUpdated = attemptWithRetry(updateOriginalRecord, 2, originalSOInvoiceParams);
                                 log.debug('originalSOInvoiceUpdated', originalSOInvoiceUpdated);
 
@@ -363,9 +381,12 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     if (!errorInLine && newCreditMemo) {
                         loadedSO.setValue({ fieldId: 'custbody_sub_install_processed', value: true, ignoreFieldChange: true });
                     }
-                    loadedSO.save();
+                    //loadedSO.save();
                     result.soType = "digital";
                 }
+
+                // save has to be here so that we handle orders with both installments and subscriptions
+                loadedSO.save();
             }
         } catch (e) {
             log.error(e.message,e.stack);
@@ -523,12 +544,12 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
     function checkSOCanBeProcessed(digitalPaymentSO, subscriptionSO, loadedSO, dateParameter, oldInstallmentPaymentItemParam, result) {
         var lineCount = loadedSO.getLineCount({ sublistId: 'item' });
-        if (digitalPaymentSO === "T" && subscriptionSO === "T") {
-            result.errors.push({
-                error: 'Sales Order contains both Subscription and Digital Installment Payment - cannot be processed (yet).',
-                soID: loadedSO.getValue({ fieldId: 'id' })
-            });
-        }
+        // if (digitalPaymentSO === "T" && subscriptionSO === "T") {
+        //     result.errors.push({
+        //         error: 'Sales Order contains both Subscription and Digital Installment Payment - cannot be processed (yet).',
+        //         soID: loadedSO.getValue({ fieldId: 'id' })
+        //     });
+        // }
         if (digitalPaymentSO == 'T') {
             log.debug('digitalPaymentSO', digitalPaymentSO)
                         
@@ -1252,7 +1273,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
      * @returns {Record} The updated invoice record.
      */
 
-    function setForecastsOnOriginalInvoice(internalID, forecastTwo, forecastThree) {
+    function setForecastsOnOriginalInvoice(internalID, forecastTwo, forecastThree, installmentPaymentItemParam) {
 
         // Load the original Invoice
         var loadedInvoice = record.load({
@@ -1286,9 +1307,10 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
             // Log the values
             log.debug(internalID + ' Line Original Inv' + (i + 1), 'Item Original Inv: ' + item + ', Subscription Flag Original Inv: ' + subscriptionFlagLineInv + ', Choice Bundle Original Inv: ' + choiceBundleLineInv);
+            log.debug("item check",item + ":" + installmentPaymentItemParam);
 
-
-            if (subscriptionFlagLineInv == 'Y' || choiceBundleLineInv == 'Y') {
+            if ((subscriptionFlagLineInv == 'Y' || choiceBundleLineInv == 'Y') &&
+                item != installmentPaymentItemParam) {
                 log.debug('subscriptionFlagLineInv', subscriptionFlagLineInv)
 
 
@@ -1381,7 +1403,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
      * @param {string} originalSOInvoiceField - The field ID where the original sales order invoice ID should be set.
      * @param {number} [originalSOInvoiceID] - The value to set for the original sales order invoice field (optional).
      */
-    function updateOriginalRecord(recordType, originalrecordLoadOne, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldId, currentSOInvoiceId, originalSOInvoiceField, originalSOInvoiceID, forecastedInvoiceToConvert, forecastedInvoiceToConvertSet) {
+    function updateOriginalRecord(recordType, originalrecordLoadOne, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldId, currentSOInvoiceId, originalSOInvoiceField, originalSOInvoiceID, forecastedInvoiceToConvert, forecastedInvoiceToConvertSet, installmentPaymentItemParam) {
         try {
             var recordLoad = record.load({
                 type: recordType,
@@ -1393,17 +1415,38 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
             var updated = false;
 
-            for (var h = 0; h < recordLoadLineCount; h++) {
+            for (var h = 0; h < recordLoadLineCount && !updated; h++) {
                 var recordLoadRate = recordLoad.getSublistValue({
                     sublistId: 'item',
                     fieldId: 'rate',
                     line: h
                 });
 
-                log.debug('recordLoadRate', recordLoadRate);
-                log.debug('digitalPaymentRate', digitalPaymentRate);
+                var item = recordLoad.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'item',
+                    line: h
+                });
 
-                if (recordLoadRate && String(recordLoadRate).trim() === String(digitalPaymentRate).trim()) {
+                var invoiceSet = recordLoad.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: currentSOInvoiceFieldId,
+                    line: h
+                });
+
+                log.debug('updateOriginalrecord Details', 'Rate: ' + recordLoadRate + ' Payment Rate: ' + digitalPaymentRate + ' invoiceField: ' + currentSOInvoiceFieldId + ' Set: ' + invoiceSet);
+
+                // this won't work for multiple lines, also doesn't work for sub and installment on the same order
+                // need a way to control the logic a bit better
+                // mazuk
+                // one improvement - check for the installment item and skip it
+                // second improvement - update the first line that matches the rate and has the invoice for the installment payment open (ie, not been paid yet)
+                if (item === installmentPaymentItemParam) {
+                    // if this is the installment payment item, then don't process the line
+                }
+
+                // if the invoice field has not been set, and the rate matches, then process the line.
+                else if (!invoiceSet && recordLoadRate && String(recordLoadRate).trim() === String(digitalPaymentRate).trim()) {
                     log.debug('inside if', digitalPaymentRate);
 
                     recordLoad.setSublistValue({ sublistId: 'item', fieldId: creditMemoFieldId, line: h, value: newCreditMemo });
@@ -1434,6 +1477,68 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
         }
     }
 
+    function updateRecordeTailId(recordType, originalrecordLoadOne, etailLineId, params) {
+        // creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldId, currentSOInvoiceId, originalSOInvoiceField, originalSOInvoiceID, forecastedInvoiceToConvert, forecastedInvoiceToConvertSet) {
+        try {
+            var recordLoad = record.load({
+                type: recordType,
+                id: originalrecordLoadOne
+            });
+
+            var recordLoadLineCount = recordLoad.getLineCount({ sublistId: 'item' });
+            log.debug('recordLoadLineCount', recordLoadLineCount);
+
+            var updated = false;
+
+            for (var h = 0; h < recordLoadLineCount; h++) {
+                var lineEtailLineId = recordLoad.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'custcol_celigo_etail_order_line_id',
+                    line: h
+                });
+
+                //log.debug('recordLoadRate', recordLoadRate);
+                //log.debug('digitalPaymentRate', digitalPaymentRate);
+
+                // this won't work for multiple lines, also doesn't work for sub and installment on the same order
+                // need a way to control the logic a bit better
+                // mazuk
+                //if (recordLoadRate && String(recordLoadRate).trim() === String(digitalPaymentRate).trim()) {
+                if (etailLineId === lineEtailLineId) {
+                    log.debug('inside if', etailLineId);
+
+                    // recordLoad.setSublistValue({ sublistId: 'item', fieldId: creditMemoFieldId, line: h, value: newCreditMemo });
+                    // recordLoad.setSublistValue({ sublistId: 'item', fieldId: currentSOInvoiceFieldId, line: h, value: currentSOInvoiceId });
+
+                    // if (originalSOInvoiceID) {
+                    //     recordLoad.setSublistValue({ sublistId: 'item', fieldId: originalSOInvoiceField, line: h, value: originalSOInvoiceID });
+                    // }
+
+                    // if (forecastedInvoiceToConvert) {
+                    //     recordLoad.setSublistValue({ sublistId: 'item', fieldId: forecastedInvoiceToConvertSet, line: h, value: forecastedInvoiceToConvert });
+                    // }
+                    params.forEach(function (fieldItem) {
+                        log.debug("fieldItem",fieldItem);
+                        recordLoad.setSublistValue({ sublistId: 'item', fieldId: fieldItem.scriptid, line: h, value: fieldItem.value});
+                        log.debug("set line value", h + ":" + fieldItem.scriptid + ":" + fieldItem.value);
+                    });
+
+                    updated = true; // Indicate that at least one line was updated
+                }
+            }
+            log.debug("check fore 3",recordLoad.getSublistValue({sublistId: 'item', fieldId: 'custcol_jlo_inv_3_fore', line: 0}));
+            if (updated) {
+                recordLoad.save();
+                log.debug('Original recordLoad Updated with Credit Memo', originalrecordLoadOne);
+            }
+
+            return { success: updated, id: originalrecordLoadOne }; // Return an object indicating success and the ID of the updated record
+
+        } catch (e) {
+            log.error('Update Failed', 'Error updating record ' + originalrecordLoadOne + ': ' + e.message);
+            return { success: false, id: originalrecordLoadOne, error: e.message }; // Return an object indicating failure and the error message
+        }
+    }
 
     /**
      * Sends an email containing error details and restart keys.
