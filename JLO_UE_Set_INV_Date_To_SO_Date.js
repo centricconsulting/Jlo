@@ -34,7 +34,7 @@ define(['N/record', 'N/log', 'N/search', 'N/runtime'], function (record, log, se
                         var ifTranDateStr = getIFTranDate(salesOrderId);
                         log.debug("IF Date",ifTranDateStr);
                         if (ifTranDateStr) {
-                            //var ifTranDate = new Date(ifTranDateStr);
+                            var ifTranDate = new Date(ifTranDateStr);
                             //if (ifTranDate < cutoffDate) {
                                 invoiceRecord.setValue({
                                     fieldId: 'trandate',
