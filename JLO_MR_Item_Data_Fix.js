@@ -23,8 +23,8 @@ define(['N/record', 'N/search', 'N/runtime', 'N/email', 'N/url'], function (reco
                     "AND",
                     ["item", "anyof", originalItem],
                     "AND",
-                    //["internalidnumber", "equalto", "3116248"], //Remove once done testing
-                    //"AND",
+                    ["internalidnumber", "equalto", "3116248"], //Remove once done testing
+                    "AND",
                     ["item", "noneof", replacementItem],
                     "AND",
                     ["trandate", "after", transactionDate]
