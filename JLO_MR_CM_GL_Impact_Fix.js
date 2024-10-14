@@ -8,6 +8,11 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
     function getInputData() {
         log.audit('<<< START >>>', 'Start of script execution');
         log.debug('in getInputData')
+        var dateParameter = runtime.getCurrentScript().getParameter('custscript_cm_tran_date');
+        dateParameter = formatISODateToMMDDYYYY(dateParameter.toString())
+        var oldInstallmentItem = runtime.getCurrentScript().getParameter('custscript_old_installment_item');
+        var adjustmnentItem = runtime.getCurrentScript().getParameter('custscript_amount_adjust_item');
+        log.audit('parameters', oldInstallmentItem + ":" + adjustmnentItem + ":" + dateParameter);
 
         //     var suiteQL = `
         //         SELECT tran.id,
@@ -21,20 +26,32 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         //     `;
 
         var suiteQL = `
-            SELECT distinct tran.id,
-            tran.status
+            SELECT distinct tran.id
             FROM transaction AS tran
             JOIN transactionline AS line ON tran.id = line.transaction
             WHERE tran.recordType = 'creditmemo'
-            AND tran.custbody_jlo_forecasted_inv = 'F'
-            AND tran.custbody_cancellation_cm = 'F'
-            AND tran.custbody_gl_update_script_processed = 'F'
-            AND tran.id=2160325
+                AND nvl(tran.custbody_jlo_forecasted_inv, 'F') = 'F'
+                AND nvl(tran.custbody_cancellation_cm, 'F') = 'F'
+                AND nvl(tran.custbody_gl_update_script_processed,'F') = 'F'
+                --AND tran.id=2160325
+                --AND tran.id=3196027
+                and tran.trandate >= to_date(?,'MM/DD/YYYY')
+            minus
+            select distinct t.id
+            from transaction t, transactionline tl
+            where t.id = tl.transaction
+                --and tl.item in ( 7891,7894)  -- ACCT_ADJUSTMENTS/REFUNDS, INS001
+                and tl.item in (?,?)
+                and t.recordtype = 'creditmemo'
+            order by 1 desc
         `;
+
+        var paramsList = [dateParameter,adjustmnentItem,oldInstallmentItem];
 
         return {
             type: 'suiteql',
-            query: suiteQL
+            query: suiteQL,
+            params: paramsList
         };
 
 
@@ -53,6 +70,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
     function reduce(context) {
         log.debug('in Reduce')
+        return;
 
         var discountReplacementItem = runtime.getCurrentScript().getParameter({name: 'custscript_discount_item'});
         var discountReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_line_discount_item'});
@@ -111,7 +129,8 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                 // Handle Header Level Discount using the helper function
                 handleHeaderDiscount(creditMemo, discountReplacementItem);
 
-                for (var i = lineCount - 1; i >= 0; i--) {
+                //for (var i = lineCount - 1; i >= 0; i--) {
+                for (var i = 0; i < lineCount; i++) {
                     var item = creditMemo.getSublistValue({
                         sublistId: 'item',
                         fieldId: 'item',
@@ -120,11 +139,11 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                     log.debug('item', item);
 
                     if (item == shippingOriginalItemLine) { // Shopify Shipping Cost
-                        updateCreditMemoLine(creditMemo, i, shippingReplacementItemLine);
+                        updateCreditMemoLine(creditMemo, i, shippingReplacementItemLine, null, null, null, false);
                     } else if (item == discountOriginalItemLine) { // Shopify Line Discount - New
-                        updateCreditMemoLine(creditMemo, i, discountReplacementItemLine);
+                        updateCreditMemoLine(creditMemo, i, discountReplacementItemLine, null, null, null, true);
                     } else if (isInventoryOrKitItem(item)) {
-                        updateCreditMemoLine(creditMemo, i, invkitReplacementItemLine);
+                        updateCreditMemoLine(creditMemo, i, invkitReplacementItemLine, null, null, null, false);
                     }
                 }
 
@@ -133,7 +152,8 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                 logMessages.push('Processed Credit Memo ' + creditMemoId);
 
                 if (isSubscriptionOrChoiceBundle || isDigitalPaymentOrder) {
-                    var processCreditMemoResults = processCreditMemoForSpecialCases(creditMemo, creditMemoId, relatedInvoice, cmCreatedFrom, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder);
+                    var processCreditMemoResults = processCreditMemoForSpecialCases(creditMemo, creditMemoId, relatedInvoice, 
+                        cmCreatedFrom, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder);
                     log.debug('processCreditMemoResults', processCreditMemoResults);
                     processCreditMemoResults.errors.forEach(function (errorMessage) {
                         logMessages.push(errorMessage);
@@ -255,10 +275,20 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
             var rate = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i });
             var invOne = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: i });
-            log.debug('CM Rate', rate);
-            log.debug('invOne', invOne);
+            //var item = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i});
+            var subscriptionFlag = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_subscrptn_flg', line: i });
+            var eTailLineId = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: i });
+            
+            log.debug('line','CM Rate: ' + rate + ', invOne: ' + invOne + ', subscriptionFlag: ' + subscriptionFlag
+                + ", eTailLineId: " + eTailLineId);
 
-            if (rate != 0) {
+            // Mazuk - check if subscription flag is set - this covers choice, subscription, and installment payments. if set, skip this record
+            //log.debug("shipping item check",item + ":" + shippingLineItem);
+            //if (item === shippingLineItem ) {
+            if (!subscriptionFlag) {
+                log.debug("skipping non subscription item",subscriptionFlag);
+                // skip this line
+            } else if (rate != 0) {
 
                 if (isSubscriptionOrChoiceBundle) {
                     // Find the corresponding line in the invoice
@@ -289,7 +319,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
                 if (isDigitalPaymentOrder) {
                     // Find the corresponding line in the invoice
-                    var invoiceLine = findMatchingInvoiceLine(relatedInvoice, rate, invOne);
+                    var invoiceLine = findMatchingInvoiceLine(relatedInvoice, eTailLineId);
                     log.debug('matching invoiceLine', invoiceLine);
 
                     if (invoiceLine !== -1) {
@@ -378,6 +408,19 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             var invoiceOneValue = invoice.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: i });
 
             if (invoiceRate === rate && invoiceOneValue === invOne) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // using this since we can't count on invoice #1 being populated on the credit memo
+    function findMatchingInvoiceLine(invoice, eTailLineId) {
+        var lineCount = invoice.getLineCount({ sublistId: 'item' });
+        for (var i = 0; i < lineCount; i++) {
+            var lineEtailLineId = invoice.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: i });
+
+            if (lineEtailLineId === eTailLineId) {
                 return i;
             }
         }
@@ -678,11 +721,11 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                 });
 
                 if (item == shippingOriginalItemLine) { //Shopify Shipping Cost
-                    updateCreditMemoLine(creditMemo, w, shippingReplacementItemLine, forecastedInvoiceId, null, cmNumber);
+                    updateCreditMemoLine(creditMemo, w, shippingReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
                 } else if (item == discountOriginalItemLine) { //Shopify Line Discount - New
-                    updateCreditMemoLine(creditMemo, w, discountReplacementItemLine, forecastedInvoiceId, null, cmNumber);
+                    updateCreditMemoLine(creditMemo, w, discountReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
                 } else if (isInventoryOrKitItem(item)) {
-                    updateCreditMemoLine(creditMemo, w, invkitReplacementItemLine, forecastedInvoiceId, null, cmNumber);
+                    updateCreditMemoLine(creditMemo, w, invkitReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
                 }
             }
 
@@ -863,7 +906,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
      * @param {number} lineIndex - The index of the line to be updated.
      * @param {number} newItem - The internal ID of the new item to be added to the credit memo.
      */
-    function updateCreditMemoLine(creditMemo, lineIndex, newItem, invoiceID, cmID, cmNumber) {
+    function updateCreditMemoLine(creditMemo, lineIndex, newItem, invoiceID, cmID, cmNumber, processAsRate) {
         // Retrieve existing values from the line at lineIndex
         var quantity = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: lineIndex });
         var rate = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: lineIndex });
@@ -873,6 +916,8 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         var installmentFlag = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_subscrptn_flg', line: lineIndex });
         var bundleID = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcolshpfy_bndl_id', line: lineIndex });
         var invOne = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: lineIndex });
+        var priceLevel = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'price', line: lineIndex });
+
 
         if (invoiceID && cmNumber) {
             var linktoUpdate = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_' + cmNumber + '_fore', line: lineIndex });
@@ -883,7 +928,8 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         }
 
 
-        log.debug('CM Details', 'quantity: ' + quantity + ', rate: ' + rate + ', taxRate: ' + taxRate + ', amount: ' + amount);
+        log.debug('CM Details', 'quantity: ' + quantity + ', rate: ' + rate + ', taxRate: ' 
+                        + taxRate + ', amount: ' + amount + ', price level: ' + priceLevel);
 
         // Set quantity and amount to 0 for the existing line
         creditMemo.setSublistValue({
@@ -948,10 +994,27 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
         creditMemo.setSublistValue({
             sublistId: 'item',
-            fieldId: 'rate',
+            fieldId: 'price',
             line: totalLines,
-            value: rate
+            value: priceLevel
         });
+
+        if (processAsRate) {
+            creditMemo.setSublistText({
+                sublistId: 'item',
+                fieldId: 'rate',
+                line: totalLines,
+                value: rate + '%'
+            });
+        } else {
+            creditMemo.setSublistValue({
+                sublistId: 'item',
+                fieldId: 'rate',
+                line: totalLines,
+                value: rate
+            });
+        }
+
 
         creditMemo.setSublistValue({
             sublistId: 'item',
@@ -967,12 +1030,19 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             value: taxRate
         });
 
-        creditMemo.setSublistValue({
-            sublistId: 'item',
-            fieldId: 'amount',
-            line: totalLines,
-            value: amount
-        });
+        // for some things - like discounts, just process the rate as opposed to the amount
+        //if (!processAsRate) {
+        //    log.debug("set amount");
+            creditMemo.setSublistValue({
+                sublistId: 'item',
+                fieldId: 'amount',
+                line: totalLines,
+                value: amount
+            });
+       // } else {
+        //    log.debug("skip amount");
+        //}
+        
         creditMemo.setSublistValue({
             sublistId: 'item',
             fieldId: 'custcol_shpfy_subscrptn_flg',
@@ -1058,7 +1128,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             if (searchResult.length > 0) {
                 var itemType = searchResult[0].getValue('type');
                 log.debug('itemType', itemType)
-                if (itemType === 'Kit' || itemType === 'InvtPart') {
+                if (itemType === 'Kit' || itemType === 'InvtPart' || itemType === 'Assembly') {
                     isKitOrInventory = true;
                 }
             }
@@ -1155,4 +1225,17 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         reduce: reduce,
         summarize: summarize
     };
+
+    function formatISODateToMMDDYYYY(isoDateStr) {
+        // Create a new Date object from the ISO date string
+        var date = new Date(isoDateStr);
+
+        // Extract the month, day, and year
+        var month = ('0' + (date.getUTCMonth() + 1)).slice(-2); // Add leading zero if needed
+        var day = ('0' + date.getUTCDate()).slice(-2);          // Add leading zero if needed
+        var year = date.getUTCFullYear();
+
+        // Return the formatted date as "MM/DD/YYYY"
+        return month + '/' + day + '/' + year;
+    }
 });

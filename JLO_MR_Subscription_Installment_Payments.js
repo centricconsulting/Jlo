@@ -43,7 +43,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     ], 
                     //"AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
                     "AND",
-                    ["internalid", "anyof", "2162652"],
+                    ["internalid", "anyof", "2165593"],
                     //["internalid", "anyof", "2161242"], // this is the sub/dig combination
                     //["internalid", "anyof", "2139012"], // single dig isntal
                     //["internalidnumber", "greaterthan", "3135607"],
@@ -242,7 +242,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 // If SO is a digital payment...
                 if (digitalPaymentSO == 'T') {
                     log.debug('digitalPaymentSO', digitalPaymentSO)
-                    var shippingProcessed = false
+                    var shippingProcessed = false;
+                    var shippingCreditData = null;
 
                     var errorInLine = false;
 
@@ -252,6 +253,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
                         // Get the item value
                         var shopifyOrigOrderId = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'custcolcustcol_shpfy_orgnl_order', line: i });
+                        var lineItem = loadedSO.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
                         log.debug('shopifyOrigOrderId', shopifyOrigOrderId)
 
                         if (shopifyOrigOrderId) {
@@ -299,12 +301,14 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                 if (!existingCreditMemoField) {
                                     // Create Credit Memo
                                     if (forecastedInvoiceToConvert) {
+                                        // pass back a single line that was credited (plus maybe shipping if this was the first time)
                                         creditMemoCreationResults = loadAndTransformInvoice(forecastedInvoiceToConvert, postingPeriodSO, forecastFieldToTransform, originalInvoiceOne, installmentPaymentItemParam, invoiceOneId, digitalPaymentRate, shippingItemParam, shippingProcessed);
+                                        log.debug("credit memo results",creditMemoCreationResults);
                                         newCreditMemo = creditMemoCreationResults.newCreditMemo
                                         shippingProcessed = creditMemoCreationResults.shippingProcessed
                                     }
-                                    log.debug('newCreditMemo', newCreditMemo);
-                                    log.debug('shippingProcessed', shippingProcessed);
+                                    //log.debug('newCreditMemo', newCreditMemo);
+                                    //log.debug('shippingProcessed', shippingProcessed);
 
                                     if (newCreditMemo) {
                                         // Set the link fields on the Digital Install SO
@@ -330,20 +334,45 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                                         { scriptid: currentSOInvoiceFieldID, value: invoiceOneId},
                                         { scriptid:'custcol_jlo_inv_1', value: originalInvoiceOne},
                                         { scriptid: forecastedInvoiceToConvertSet, value: forecastedInvoiceToConvert}];
-                                var currentInvoiceUpdated = updateRecordeTailId('invoice', invoiceOneId, etailLineId, currentInvoiceParams);
+                                var currentInvoiceUpdated = updateRecordeTailId('invoice', invoiceOneId, etailLineId, shippingProcessed && !shippingCreditData, shippingItemParam, currentInvoiceParams);
                                 log.debug('currentInvoiceUpdated', currentInvoiceUpdated);
 
+
+
                                 //update Original Sales Order with Credit Memo and Current Sales Order's Invoice
-                                var originalSOParams = ['salesorder', originalSO, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, installmentPaymentItemParam]
-                                var originalSOUpdated = attemptWithRetry(updateOriginalRecord, 2, originalSOParams);
-                                log.debug('originalSOUpdated', originalSOUpdated);
+                                // update based on the credit memo line that was returned
+                                //var originalSOParams = ['salesorder', originalSO, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, installmentPaymentItemParam]
+                                //var originalSOUpdated = attemptWithRetry(updateOriginalRecord, 2, originalSOParams);
+                                //log.debug('originalSOUpdated', originalSOUpdated);
+
+                                // update the forecasted invoice
+                                // add a flag to set the shipping if needed
+                                var forecastInvoiceParams = [ 
+                                    { scriptid: creditMemoFieldId, value: newCreditMemo },
+                                    { scriptid: currentSOInvoiceFieldID, value: invoiceOneId},
+                                    { scriptid: forecastedInvoiceToConvertSet, value: forecastedInvoiceToConvert}];
+                                var forecastSOUpdated = updateRecordeTailId('invoice', forecastedInvoiceToConvert, creditMemoCreationResults.eTailLineId, shippingProcessed && !shippingCreditData, shippingItemParam, forecastInvoiceParams);
+                                log.debug('forecastInvoiceUpdated', forecastSOUpdated);
+
+                                // if shipping was processed in the credit memo, save the details so it can be processed on the current sales order
+                                if (shippingProcessed && !shippingCreditData) {
+                                    log.debug("save shipping credit data",currentInvoiceParams);
+                                    shippingCreditData = currentInvoiceParams;
+                                }
+
+                                // update the subscription sales order
+                                var subInvoiceParams = [ 
+                                    { scriptid: creditMemoFieldId, value: newCreditMemo },
+                                    { scriptid: currentSOInvoiceFieldID, value: invoiceOneId},
+                                    { scriptid:'custcol_jlo_inv_1', value: originalInvoiceOne}];
+                                var originalSOUpdated = updateRecordeTailId('salesorder', originalSO, creditMemoCreationResults.eTailLineId, null, null, subInvoiceParams);
+                                log.debug('subInvoiceUpdated', originalSOUpdated);
 
                                 //update the Original Saless Order's Invoice with Credit Memo and Current Sales Order's Invoice
-                                // this needs to match based on rate since we don't have an item to match against
-                                // but this needs to match the line on the sales order, not sure how to do that
-                                // Mazuk
-                                var originalSOInvoiceParams = ['invoice', originalInvoiceOne, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, installmentPaymentItemParam]
-                                var originalSOInvoiceUpdated = attemptWithRetry(updateOriginalRecord, 2, originalSOInvoiceParams);
+                                // update based on the credit memo line that was returned                                
+                                //var originalSOInvoiceParams = ['invoice', originalInvoiceOne, digitalPaymentRate, creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldID, invoiceOneId, installmentPaymentItemParam]
+                                //var originalSOInvoiceUpdated = attemptWithRetry(updateOriginalRecord, 2, originalSOInvoiceParams);
+                                var originalSOInvoiceUpdated = updateRecordeTailId('invoice', originalInvoiceOne, creditMemoCreationResults.eTailLineId, null, null, subInvoiceParams);
                                 log.debug('originalSOInvoiceUpdated', originalSOInvoiceUpdated);
 
                                 var settingErrorDetails = [];
@@ -376,6 +405,16 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                             //     continue;
                             // }
 
+                        } 
+
+                        // process shipping item
+                        else if (shippingCreditData && (lineItem === shippingItemParam)) {
+                            log.debug("set shipping data",shippingCreditData);
+                            shippingCreditData.forEach(function (fieldItem) {
+                                //log.debug("fieldItem",fieldItem);
+                                loadedSO.setSublistValue({ sublistId: 'item', fieldId: fieldItem.scriptid, line: i, value: fieldItem.value});
+                                //log.debug("set line value", i + ":" + fieldItem.scriptid + ":" + fieldItem.value);
+                            });
                         }
                     }
                     if (!errorInLine && newCreditMemo) {
@@ -1102,7 +1141,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
         });
 
 
-
+        var processedETailLineId = null;
         var creditMemoLineCount = creditMemo.getLineCount({ sublistId: 'item' });
         log.debug("creditMemoLineCount", creditMemoLineCount);
 
@@ -1146,20 +1185,37 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 line: x
             });
 
+            var checkLineProcessed = creditMemo.getSublistValue({
+                sublistId: 'item',
+                fieldId: forecastFieldToTransform.toString(),
+                line: x
+            });
+
+            var etailLineId  = creditMemo.getSublistValue({
+                sublistId: 'item',
+                fieldId: 'custcol_celigo_etail_order_line_id',
+                line: x
+            });
 
             var matchingRate = (cmRate && String(cmRate).trim() === String(digitalPaymentRate).trim());
             var isShipping = (String(item).trim() === String(shippingItemParam).trim());
 
             log.debug("matchingRate", matchingRate);
-            log.debug('Line ' + (x - 1), 'Item: ' + item + ', matchingRate: ' + matchingRate + ', isShipping: ' + isShipping + ', cmTaxRate: ' + cmTaxRate + ', shippingProcessed: ' + shippingProcessed);
+            log.debug('Line ' + (x - 1), 'Item: ' + item + ', matchingRate: ' + matchingRate + ', isShipping: ' 
+                + isShipping + ', cmTaxRate: ' + cmTaxRate + ', shippingProcessed: ' + shippingProcessed
+                + ', checkLineProcessed: ' + checkLineProcessed + ', processedETailLineId: ' + processedETailLineId
+                + ', forecastFieldToTransform: ' + forecastFieldToTransform);
 
 
-            if ((!matchingRate && !isShipping) || (isShipping && shippingProcessed)) {
+            // check line has not been processed previously. 
+            if (processedETailLineId || checkLineProcessed || (!matchingRate && !isShipping) || (isShipping && shippingProcessed)) {
                 log.debug('Removing Line ' + (x + 1), 'Item: ' + item + ', matchingRate: ' + matchingRate + ', isShipping: ' + isShipping + ', shippingProcessed: ' + shippingProcessed);
                 isShipping = false
                 creditMemo.removeLine({ sublistId: 'item', line: x });
             } else {
-                if (matchingRate) {
+                // if a line has not been processed already, and the rate matches for this line, then process it.
+                if (!processedETailLineId && matchingRate) {
+                    log.debug("update credit memo line",x);
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: 'item', line: x, value: installPaymentItem });
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1	', line: x, value: originalInvoice });
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: forecastFieldToTransform.toString(), line: x, value: invoiceId });
@@ -1168,7 +1224,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: 'amount', line: x, value: cmAmount });
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: 'taxcode', line: x, value: cmTaxCode });
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: 'taxrate1', line: x, value: cmTaxRate });
-
+                    processedETailLineId = etailLineId;
                 }
                 if (isShipping) {
                     creditMemo.setSublistValue({ sublistId: 'item', fieldId: forecastFieldToTransform.toString(), line: x, value: invoiceId });
@@ -1197,7 +1253,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
 
         return {
             newCreditMemo: creditMemoSave,
-            shippingProcessed: shippingProcessed
+            shippingProcessed: shippingProcessed,
+            eTailLineId: processedETailLineId
         };
     }
 
@@ -1477,9 +1534,11 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
         }
     }
 
-    function updateRecordeTailId(recordType, originalrecordLoadOne, etailLineId, params) {
+    function updateRecordeTailId(recordType, originalrecordLoadOne, etailLineId, processShipping, shippingItemParam, params) {
         // creditMemoFieldId, newCreditMemo, currentSOInvoiceFieldId, currentSOInvoiceId, originalSOInvoiceField, originalSOInvoiceID, forecastedInvoiceToConvert, forecastedInvoiceToConvertSet) {
         try {
+            log.debug("updateRecordeTailId","recordType: " + recordType + ", Rec Id: " + originalrecordLoadOne + ", eTail Id: " + etailLineId 
+                    + ", processShipping: " + processShipping + ", shippingItem: " + shippingItemParam + ", params: " + params);
             var recordLoad = record.load({
                 type: recordType,
                 id: originalrecordLoadOne
@@ -1497,6 +1556,12 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     line: h
                 });
 
+                var lineItem = recordLoad.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'item',
+                    line: h
+                });
+
                 //log.debug('recordLoadRate', recordLoadRate);
                 //log.debug('digitalPaymentRate', digitalPaymentRate);
 
@@ -1504,6 +1569,7 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                 // need a way to control the logic a bit better
                 // mazuk
                 //if (recordLoadRate && String(recordLoadRate).trim() === String(digitalPaymentRate).trim()) {
+                log.debug("etailLine","Param: " + etailLineId + ", Line: " + lineEtailLineId);
                 if (etailLineId === lineEtailLineId) {
                     log.debug('inside if', etailLineId);
 
@@ -1518,11 +1584,18 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     //     recordLoad.setSublistValue({ sublistId: 'item', fieldId: forecastedInvoiceToConvertSet, line: h, value: forecastedInvoiceToConvert });
                     // }
                     params.forEach(function (fieldItem) {
-                        log.debug("fieldItem",fieldItem);
+                        //log.debug("fieldItem",fieldItem);
                         recordLoad.setSublistValue({ sublistId: 'item', fieldId: fieldItem.scriptid, line: h, value: fieldItem.value});
-                        log.debug("set line value", h + ":" + fieldItem.scriptid + ":" + fieldItem.value);
+                        //log.debug("set line value", h + ":" + fieldItem.scriptid + ":" + fieldItem.value);
                     });
 
+                    updated = true; // Indicate that at least one line was updated
+                } else if ( processShipping && ( lineItem === shippingItemParam)) {
+                    params.forEach(function (fieldItem) {
+                        //log.debug("fieldItem",fieldItem);
+                        recordLoad.setSublistValue({ sublistId: 'item', fieldId: fieldItem.scriptid, line: h, value: fieldItem.value});
+                        //log.debug("set shipping line value", h + ":" + fieldItem.scriptid + ":" + fieldItem.value);
+                    });
                     updated = true; // Indicate that at least one line was updated
                 }
             }
