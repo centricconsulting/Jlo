@@ -148,25 +148,25 @@ define(['N/record', 'N/runtime', 'N/search'], function (record, runtime, search)
                     // if the location is not set at the line level, then:
                     // if the line has the custcol_celigo_etail_order_line_id set, default the location from the header
                     // otherwise default to the corporate address
-                    if (!locationLine) {
-                        if (orderLineId) {
-                            newRecord.setSublistValue({
-                                sublistId: 'item',
-                                fieldId: 'location',
-                                value: locationHeaderId,
-                                ignoreFieldChange: true,
-                                line: i
-                            });
-                        } else {
-                            newRecord.setSublistValue({
-                                sublistId: 'item',
-                                fieldId: 'location',
-                                value: corporateLocation,
-                                ignoreFieldChange: true,
-                                line: i
-                            });
-                        }
-                    }
+                    // if (!locationLine) {
+                    //     if (orderLineId) {
+                    //         newRecord.setSublistValue({
+                    //             sublistId: 'item',
+                    //             fieldId: 'location',
+                    //             value: locationHeaderId,
+                    //             ignoreFieldChange: true,
+                    //             line: i
+                    //         });
+                    //     } else {
+                    //         newRecord.setSublistValue({
+                    //             sublistId: 'item',
+                    //             fieldId: 'location',
+                    //             value: corporateLocation,
+                    //             ignoreFieldChange: true,
+                    //             line: i
+                    //         });
+                    //     }
+                    // }
                     
 
 
