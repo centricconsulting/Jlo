@@ -42,11 +42,11 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                         ["custbody_cen_jlo_choice", "is", "T"]
                     ], 
                     //"AND", ["custcol_jlo_inv_1", "anyof", "@NONE@"]],
-                    "AND",
-                    ["internalid", "anyof", "2165593"],
+                    //"AND",
+                    //["internalid", "anyof", "4029486"],
                     //["internalid", "anyof", "2161242"], // this is the sub/dig combination
                     //["internalid", "anyof", "2139012"], // single dig isntal
-                    //["internalidnumber", "greaterthan", "3135607"],
+                    //["internalidnumber", "greaterthan", "4026961"],
                     // ["internalid", "anyof", "459421", "809546", "1209981", "1242494", "1665360", "2000019", "775696", "1132017", "1537880"],
                     "AND",
                     ["custbody_sub_install_processed", "is", "F"]
@@ -659,8 +659,8 @@ define(['N/runtime', 'N/record', 'N/search', 'N/log', 'N/email', 'N/url'], funct
                     ["mainline", "is", "T"],
                     "AND",
                     ["createdfrom", "anyof", salesOrderId],
-                    "AND",
-                    ["status", "anyof", "CustInvc:B"]
+                    //"AND",
+                    //["status", "anyof", "CustInvc:B"]
                 ],
             columns:
                 [
