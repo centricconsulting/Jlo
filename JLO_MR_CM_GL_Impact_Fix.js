@@ -7,23 +7,12 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
     function getInputData() {
         log.audit('<<< START >>>', 'Start of script execution');
-        log.debug('in getInputData')
+        //log.debug('in getInputData')
         var dateParameter = runtime.getCurrentScript().getParameter('custscript_cm_tran_date');
         dateParameter = formatISODateToMMDDYYYY(dateParameter.toString())
         var oldInstallmentItem = runtime.getCurrentScript().getParameter('custscript_old_installment_item');
         var adjustmnentItem = runtime.getCurrentScript().getParameter('custscript_amount_adjust_item');
         log.audit('parameters', oldInstallmentItem + ":" + adjustmnentItem + ":" + dateParameter);
-
-        //     var suiteQL = `
-        //         SELECT tran.id,
-        //         tran.status
-        //         FROM transaction AS tran
-        //         JOIN transactionline AS line ON tran.id = line.transaction
-        //         WHERE tran.recordType = 'creditmemo'
-        //         AND tran.status = 'CustCred:B'
-        //         AND tran.custbody_jlo_forecasted_inv = 'F'
-        //  --       AND line.item NOT IN (discountReplacementItem, discountReplacementItemLine, invkitReplacementItemLine, shippingReplacementItemLine)
-        //     `;
 
         var suiteQL = `
             SELECT distinct tran.id
@@ -34,7 +23,8 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                 AND nvl(tran.custbody_cancellation_cm, 'F') = 'F'
                 AND nvl(tran.custbody_gl_update_script_processed,'F') = 'F'
                 --AND tran.id=2160325
-                --AND tran.id=3196027
+                --AND tran.id=2849781
+                and tran.id=3196027
                 and tran.trandate >= to_date(?,'MM/DD/YYYY')
             minus
             select distinct t.id
@@ -52,9 +42,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             type: 'suiteql',
             query: suiteQL,
             params: paramsList
-        };
-
-
+        }
     }
 
     function map(context) {
@@ -69,19 +57,9 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
     }
 
     function reduce(context) {
-        log.debug('in Reduce')
-        return;
-
-        var discountReplacementItem = runtime.getCurrentScript().getParameter({name: 'custscript_discount_item'});
-        var discountReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_line_discount_item'});
-        var discountOriginalItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_original_line_discount_item'});
-        var invkitReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_inv_kit_item'});
-        var shippingReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_shipping_item'});
-        var shippingOriginalItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_original_shipping_item'});
-
-
+        var newInstallmentItem = runtime.getCurrentScript().getParameter('custscript_new_installment_item');
         var creditMemoId = context.key; //Credit Memo Internal ID
-        log.audit('creditMemoId', creditMemoId);
+        log.audit('Reduce: creditMemoId', creditMemoId);
 
         var logMessages = [];
 
@@ -90,76 +68,30 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             //Load the Credit Memo
             var creditMemo = record.load({ type: record.Type.CREDIT_MEMO, id: creditMemoId });
 
-            //Check the Credit Memo Type
             var isSubscriptionOrChoiceBundle = creditMemo.getValue('custbody_cen_jlo_instal_ord') || creditMemo.getValue('custbody_cen_jlo_choice');
             var isDigitalPaymentOrder = creditMemo.getValue('custbody_cen_jlo_digital_pmt_ord');
-            log.debug('CM Type', 'isSubscriptionOrChoiceBundle: ' + isSubscriptionOrChoiceBundle + ', isDigitalPaymentOrder: ' + isDigitalPaymentOrder);
+            var cmCreatedFrom = creditMemo.getValue('createdfrom');
+            var relatedInvoice = record.load({ type: record.Type.INVOICE, id: cmCreatedFrom });
 
+            // check to see if this credit memo should be processed
+            if (shouldCreditMemoBeProcessed(creditMemo, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder, relatedInvoice))
+            {
 
-            var lineCount = creditMemo.getLineCount({ sublistId: 'item' });
+                convertCreditMemoGLImpact(creditMemo, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder);
 
-
-            var processCreditMemo = true;
-            if (isSubscriptionOrChoiceBundle || isDigitalPaymentOrder) {
-
-                var cmCreatedFrom = creditMemo.getValue('createdfrom');
-                var relatedInvoice = record.load({ type: record.Type.INVOICE, id: cmCreatedFrom });
-                var cmCreatedFromLineCount = relatedInvoice.getLineCount({ sublistId: 'item' });
-                var hasNonEmptyInvoice1 = false;
-
-                for (var i = 0; i < cmCreatedFromLineCount; i++) {
-                    var invoice1 = relatedInvoice.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: i });
-                    log.debug('invoice1', invoice1);
-
-                    // Check if the current line has a non-empty invoice1
-                    if (invoice1) {
-                        hasNonEmptyInvoice1 = true;
-                        break; // Exit loop early if at least one non-empty invoice1 is found
-                    }
-                }
-                // Set processCreditMemo based on whether any line had a non-empty invoice1
-                if (!hasNonEmptyInvoice1) {
-                    log.audit('Invoice Line Empty', 'Related Invcoie: ' + cmCreatedFrom + ', All lines had empty Invoice #1');
-                    logMessages.push('Skipped Credit Memo: ' + creditMemoId + ', due to all lines having empty Invoice #1.');
-                    processCreditMemo = false;
-                }
-            }
-
-            if (processCreditMemo) {
-                // Handle Header Level Discount using the helper function
-                handleHeaderDiscount(creditMemo, discountReplacementItem);
-
-                //for (var i = lineCount - 1; i >= 0; i--) {
-                for (var i = 0; i < lineCount; i++) {
-                    var item = creditMemo.getSublistValue({
-                        sublistId: 'item',
-                        fieldId: 'item',
-                        line: i
-                    });
-                    log.debug('item', item);
-
-                    if (item == shippingOriginalItemLine) { // Shopify Shipping Cost
-                        updateCreditMemoLine(creditMemo, i, shippingReplacementItemLine, null, null, null, false);
-                    } else if (item == discountOriginalItemLine) { // Shopify Line Discount - New
-                        updateCreditMemoLine(creditMemo, i, discountReplacementItemLine, null, null, null, true);
-                    } else if (isInventoryOrKitItem(item)) {
-                        updateCreditMemoLine(creditMemo, i, invkitReplacementItemLine, null, null, null, false);
-                    }
-                }
-
-                creditMemo.setValue('custbody_gl_update_script_processed', true);
-                creditMemo.save();
-                logMessages.push('Processed Credit Memo ' + creditMemoId);
 
                 if (isSubscriptionOrChoiceBundle || isDigitalPaymentOrder) {
                     var processCreditMemoResults = processCreditMemoForSpecialCases(creditMemo, creditMemoId, relatedInvoice, 
-                        cmCreatedFrom, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder);
+                        cmCreatedFrom, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder, newInstallmentItem);
                     log.debug('processCreditMemoResults', processCreditMemoResults);
                     processCreditMemoResults.errors.forEach(function (errorMessage) {
                         logMessages.push(errorMessage);
                     });
                 }
+                creditMemo.save();
+                logMessages.push('Processed Credit Memo ' + creditMemoId);
             }
+
         } catch (e) {
             logMessages.push('Error processing Credit Memo ' + creditMemoId + ': ' + e.message);
         }
@@ -201,7 +133,73 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         });
     }
 
+    function shouldCreditMemoBeProcessed(creditMemo, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder, relatedInvoice) {
+        //Check the Credit Memo Type
+        log.debug('shouldCreditMemoBeProcessed', 'isSubscriptionOrChoiceBundle: ' + isSubscriptionOrChoiceBundle + ', isDigitalPaymentOrder: ' + isDigitalPaymentOrder);
 
+        var processCreditMemo = true;
+
+        // for subscription, choice, or digital installment payments, check to see if the subscription script has run on
+        // the invoice the credit memo was created from. if not, then do not process this credit memo
+        if (isSubscriptionOrChoiceBundle || isDigitalPaymentOrder) {
+
+            var cmCreatedFromLineCount = relatedInvoice.getLineCount({ sublistId: 'item' });
+            var hasNonEmptyInvoice1 = false;
+
+            for (var i = 0; i < cmCreatedFromLineCount; i++) {
+                var invoice1 = relatedInvoice.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: i });
+                log.debug('invoice1', invoice1);
+
+                // Check if the current line has a non-empty invoice1
+                if (invoice1) {
+                    hasNonEmptyInvoice1 = true;
+                    break; // Exit loop early if at least one non-empty invoice1 is found
+                }
+            }
+
+            // Set processCreditMemo based on whether any line had a non-empty invoice1
+            if (!hasNonEmptyInvoice1) {
+                log.audit('Invoice Line Empty', 'Related Invcoie: ' + relatedInvoice.getValue('id') + ', All lines had empty Invoice #1');
+                logMessages.push('Skipped Credit Memo: ' + creditMemoId + ', due to all lines having empty Invoice #1.');
+                processCreditMemo = false;
+            }
+        }
+
+        return processCreditMemo;
+    }
+
+    function convertCreditMemoGLImpact(creditMemo, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder) {
+        var discountReplacementItem = runtime.getCurrentScript().getParameter({name: 'custscript_discount_item'});
+        var discountReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_line_discount_item'});
+        var discountOriginalItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_original_line_discount_item'});
+        var invkitReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_inv_kit_item'});
+        var shippingReplacementItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_shipping_item'});
+        var shippingOriginalItemLine = runtime.getCurrentScript().getParameter({name: 'custscript_original_shipping_item'});
+        log.debug('convertCreditMemoGLImpact');
+
+        // Handle Header Level Discount using the helper function
+        handleHeaderDiscount(creditMemo, discountReplacementItem);
+        var lineCount = creditMemo.getLineCount({ sublistId: 'item' });
+
+        for (var i = 0; i < lineCount; i++) {
+            var item = creditMemo.getSublistValue({sublistId: 'item', fieldId: 'item', line: i });
+            log.debug('item', item);
+
+            if (item == shippingOriginalItemLine) { // Shopify Shipping Cost
+                updateCreditMemoLineGL(creditMemo, i, shippingReplacementItemLine, null, null, null, false);
+            } else if (item == discountOriginalItemLine) { // Shopify Line Discount - New
+                updateCreditMemoLineGL(creditMemo, i, discountReplacementItemLine, null, null, null, true);
+            } else if (isInventoryOrKitItem(item)) {
+                updateCreditMemoLineGL(creditMemo, i, invkitReplacementItemLine, null, null, null, false);
+            }
+
+        }
+
+        creditMemo.setValue('custbody_gl_update_script_processed', true);
+        if (isSubscriptionOrChoiceBundle || isDigitalPaymentOrder) {
+            creditMemo.setValue('custbody_cancellation_cm', true);
+        }
+    }
 
     //HELPER FUNCTIONS
 
@@ -238,8 +236,6 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         }
     }
 
-
-
     /**
 * Processes a credit memo to handle special cases such as subscription orders, choice bundles, and digital installment payments.
 * 
@@ -256,17 +252,12 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 * This function is used to ensure that credit memos are processed correctly in cases where special handling is required.
 */
 
-    function processCreditMemoForSpecialCases(creditMemo, creditMemoId, relatedInvoice, relatedInvoiceId, isSubscriptionOrChoiceBundle, isDigitalPaymentOrder) {
+    function processCreditMemoForSpecialCases(creditMemo, creditMemoId, relatedInvoice, relatedInvoiceId, 
+            isSubscriptionOrChoiceBundle, isDigitalPaymentOrder, newInstallmentItem) {
         var result = {
             errors: [],
             successes: []
         };
-
-        //  var relatedInvoiceId = creditMemo.getValue('createdfrom');
-        //log.debug('relatedInvoiceId', relatedInvoiceId);
-        // var installOrder = creditMemo.getValue('custbody_cen_jlo_instal_ord')
-        // var choiceBundle = creditMemo.getValue('custbody_cen_jlo_choice')
-        // var digitalPayment = creditMemo.getValue('custbody_cen_jlo_digital_pmt_ord')
 
         var matchingLines = [];
 
@@ -274,64 +265,47 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
         for (var i = 0; i < lineCount; i++) {
 
             var rate = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: i });
+            var item = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i });
             var invOne = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: i });
-            //var item = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'item', line: i});
             var subscriptionFlag = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_shpfy_subscrptn_flg', line: i });
-            var eTailLineId = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: i });
-            
+            var subInstallments = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcolcustcol_shpfy_num_instlmts', line: i });
+            //var choiceLine = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcolshpfy_bndl_id', line: i });
+            var eTailLineIdOrig = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: i });
+
+            // because some lines are in scientific notation, convert the line
+            //log.debug("etail",Number(eTailLineId).toLocaleString('fullwide', {useGrouping:false}));
+            var eTailLineId = Number(eTailLineIdOrig).toLocaleString('fullwide', {useGrouping:false});
             log.debug('line','CM Rate: ' + rate + ', invOne: ' + invOne + ', subscriptionFlag: ' + subscriptionFlag
                 + ", eTailLineId: " + eTailLineId);
 
-            // Mazuk - check if subscription flag is set - this covers choice, subscription, and installment payments. if set, skip this record
-            //log.debug("shipping item check",item + ":" + shippingLineItem);
-            //if (item === shippingLineItem ) {
-            if (!subscriptionFlag) {
-                log.debug("skipping non subscription item",subscriptionFlag);
-                // skip this line
-            } else if (rate != 0) {
+            if ((item === newInstallmentItem) ||
+                 subscriptionFlag || subInstallments) {
 
-                if (isSubscriptionOrChoiceBundle) {
-                    // Find the corresponding line in the invoice
-                    var invoiceLine = findMatchingInvoiceLineNoItem(relatedInvoice, rate);
-                    log.debug('matching invoiceLine', invoiceLine);
+                // Find the corresponding line in the invoice
+                var invoiceLine = findMatchingInvoiceLine(relatedInvoice, eTailLineId);
+                log.debug('matching invoiceLine', invoiceLine);
 
-                    if (invoiceLine !== -1) {
+                if (invoiceLine !== -1) {
+                    matchingLines.push({ creditMemoLine: i, invoiceLine: invoiceLine, rate: rate, eTailLineId: eTailLineId });
 
-                        var invoiceLineSubCheck = relatedInvoice.getSublistValue({
-                            sublistId: 'item',
-                            fieldId: 'custcol_shpfy_subscrptn_flg',
-                            line: invoiceLine
-                        }) === 'Y';
-                        log.debug('invoiceLineSubCheck', invoiceLineSubCheck)
-
-                        var invoiceLineChoiceCheck = relatedInvoice.getSublistValue({
-                            sublistId: 'item',
-                            fieldId: 'custcolshpfy_bndl_id',
-                            line: invoiceLine
-                        });
-                        log.debug('invoiceLineChoiceCheck', invoiceLineChoiceCheck)
-
-                        if (invoiceLineSubCheck || invoiceLineChoiceCheck) {
-                            matchingLines.push({ creditMemoLine: i, invoiceLine: invoiceLine, rate: rate });
-                        }
-                    }
+                    // mazuk - set these on the original credit memo
+                    //if (subscriptionFlag || choiceBundle, then set invoice #1 so that it links
+                    //if digital installment payment, also set invoice #1 so we link to.
+                    creditMemo.setSublistValue({ sublistId: 'item', fieldId: 'custcol_jlo_inv_1', line: i, value: relatedInvoiceId });
+                } else {
+                    result.errors.push('No matching line found to process credit memos. CM: ' + creditMemoId 
+                            + ', Invoice: ' + relatedInvoice
+                            + ', eTailLineId: ' + eTailLineId);
                 }
 
-                if (isDigitalPaymentOrder) {
-                    // Find the corresponding line in the invoice
-                    var invoiceLine = findMatchingInvoiceLine(relatedInvoice, eTailLineId);
-                    log.debug('matching invoiceLine', invoiceLine);
-
-                    if (invoiceLine !== -1) {
-                        matchingLines.push({ creditMemoLine: i, invoiceLine: invoiceLine, rate: rate });
-                    }
-                }
             }
         }
 
         log.debug('matchingLines', matchingLines);
+
         // Only proceed if there are matching lines
         if (matchingLines.length > 0) {
+
             // Handle subscription or choice bundle
             if (isSubscriptionOrChoiceBundle) {
                 var forecastResult = createCreditMemosForForecastedInvoices(creditMemo, relatedInvoice, matchingLines, creditMemoId, relatedInvoiceId);
@@ -452,6 +426,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
         // If forecasted invoices exist, process them using the matching lines
         if (matchingLines.length > 0) {
+
             // Get forecasted invoice IDs from the first matching line (assuming all relevant lines are linked to the same forecasted invoices)
             var invoiceLine = matchingLines[0].invoiceLine;
             var forecastedInvoice2Id = invoice.getSublistValue({
@@ -666,26 +641,14 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             creditMemo.setValue({ fieldId: 'trandate', value: originalCreditMemo.getValue('trandate') });
             creditMemo.setValue({ fieldId: 'custbody_cancellation_cm', value: true });
 
-            var headerDiscount = creditMemo.getValue('discountitem');
-            //If a Header Level Discount exists, replace the discount item with ACCT_SHOPIFY_CART_DISCOUNT_CREDIT. 
-            if (headerDiscount) {
-                var headerDiscountRate = creditMemo.getValue('discountrate');
-                creditMemo.setValue({
-                    fieldId: 'discountitem',
-                    value: discountReplacementItem // 'ACCT_SHOPIFY_CART_DISCOUNT_CREDIT'
-                });
-                creditMemo.setValue({
-                    fieldId: 'discountrate',
-                    value: headerDiscountRate
-                });
-            }
+            handleHeaderDiscount(creditMemo,discountReplacementItem);
 
             log.debug('matchingLines', matchingLines)
             // Remove all lines that are not in matchingLines
             var lineCount = creditMemo.getLineCount({ sublistId: 'item' });
             for (var n = lineCount - 1; n >= 0; n--) {
-                // Get the invoiceLine for the current line
-                var currentInvoiceLine = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: n });
+
+                var eTailLineId = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: n });
                 var currentInvoiceLineIsShipping = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'item', line: n }) == shippingOriginalItemLine;
                 log.debug('currentInvoiceLineIsShipping', currentInvoiceLineIsShipping)
 
@@ -694,7 +657,8 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                 var isMatchingLine = false;
                 // Check if the current line exists in matchingLines
                 for (var x = 0; x < matchingLines.length; x++) {
-                    if (matchingLines[x].rate === currentInvoiceLine) {
+                    //if (matchingLines[x].rate === currentInvoiceLine) {
+                    if (matchingLines[x].eTailLineId === eTailLineId) {
                         isMatchingLine = true;
                         break;
                     }
@@ -713,6 +677,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
             var lineCountNew = creditMemo.getLineCount({ sublistId: 'item' });
             log.debug('lineCountNew', lineCountNew);
 
+            // loop back through the lines to update the GL accounting/items on the various lines of the credit memo
             for (var w = 0; w < lineCountNew; w++) {
                 var item = creditMemo.getSublistValue({
                     sublistId: 'item',
@@ -721,18 +686,17 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                 });
 
                 if (item == shippingOriginalItemLine) { //Shopify Shipping Cost
-                    updateCreditMemoLine(creditMemo, w, shippingReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
+                    updateCreditMemoLineGL(creditMemo, w, shippingReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
                 } else if (item == discountOriginalItemLine) { //Shopify Line Discount - New
-                    updateCreditMemoLine(creditMemo, w, discountReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
+                    updateCreditMemoLineGL(creditMemo, w, discountReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
                 } else if (isInventoryOrKitItem(item)) {
-                    updateCreditMemoLine(creditMemo, w, invkitReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
+                    updateCreditMemoLineGL(creditMemo, w, invkitReplacementItemLine, forecastedInvoiceId, null, cmNumber, false);
                 }
             }
 
             refreshCMApplication(creditMemo, forecastedInvoiceId)
 
             // Save the credit memo
-
             var cmCreated = creditMemo.save();
             log.debug('cmCreated', cmCreated);
 
@@ -747,45 +711,16 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
                     invoice.setSublistValue({ sublistId: 'item', fieldId: cmField, line: linePair.invoiceLine, value: cmCreated });
                 });
 
-
                 // Set the reference to the newly created credit memo on the Forecasted invoice(s)
-                var forecastedInvoice = record.load({
-                    type: record.Type.INVOICE,
-                    id: forecastedInvoiceId
-                });
-                var lineCountForecastedInvoice = forecastedInvoice.getLineCount({ sublistId: 'item' });
-                var isMatchingLineRate = false;
-
-                matchingLines.forEach(function (linePair) {
-                    log.debug('linePair', linePair)
-
-                    for (var y = 0; y < lineCountForecastedInvoice; y++) {
-                        var forecastedInvoiceLineRate = forecastedInvoice.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: y });
-                        log.debug('forecastedInvoiceLineRate', forecastedInvoiceLineRate)
-
-                        if (linePair.rate === forecastedInvoiceLineRate) {
-                            isMatchingLineRate = true;
-                            break;
-                        }
-                    }
-
-                    if (isMatchingLineRate) {
-                        forecastedInvoice.setSublistValue({ sublistId: 'item', fieldId: cmField, line: y, value: cmCreated });
-                    }
-                });
-
-
-
-                var foreCastedInvoiceUpdated = forecastedInvoice.save();
-                log.audit('Forecasted Invoice Updated with Cancellation CM Link', foreCastedInvoiceUpdated);
-
+                updateFieldOnTransaction(forecastedInvoiceId,record.Type.INVOICE,matchingLines,cmField,cmCreated);
 
                 // Set the reference to the newly created credit memo on Invoice One. This is for Digital Payments only
-
                 if (digitalPaymentInvoiceOne) {
                     var lineCountInvoiceOne = digitalPaymentInvoiceOne.getLineCount({ sublistId: 'item' });
                     var isMatchingLineRateInvoiceOne = false;
                     var invoiceOneCreatedFromSO = digitalPaymentInvoiceOne.getValue('createdfrom');
+
+
 
                     var salesOrderOne = record.load({
                         type: record.Type.SALES_ORDER,
@@ -840,40 +775,9 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
                 } else {
 
+                    // add the credit memo on the original sales order
                     var originalSO = invoice.getValue('createdfrom');
-                    var salesOrderOne = record.load({
-                        type: record.Type.SALES_ORDER,
-                        id: originalSO
-                    });
-                    var invoiceOneSOLineCount = salesOrderOne.getLineCount({ sublistId: 'item' });
-                    var isMatchingInvoiceOneCreatedFromSO = false;
-                    if (salesOrderOne) {
-                        matchingLines.forEach(function (linePair) {
-                            log.debug('linePair', linePair)
-
-                            for (var c = 0; c < invoiceOneSOLineCount; c++) {
-                                var invoiceOneSOLineRate = salesOrderOne.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: c });
-                                log.debug('invoiceOneSOLineRate', invoiceOneSOLineRate)
-
-                                if (linePair.rate === invoiceOneSOLineRate) {
-                                    isMatchingInvoiceOneCreatedFromSO = true;
-                                    break;
-                                }
-                            }
-
-                            if (isMatchingInvoiceOneCreatedFromSO) {
-                                salesOrderOne.setSublistValue({
-                                    sublistId: 'item', fieldId: cmField, line: c, value: cmCreated
-                                });
-
-                            }
-
-                        });
-                        var salesOrderOneUpdated = salesOrderOne.save();
-                        log.audit('Original Sales Order Updated with Cancellation CM Link', salesOrderOneUpdated);
-                    }
-
-
+                    updateFieldOnTransaction(originalSO,record.Type.SALES_ORDER,matchingLines,cmField,cmCreated);
                 }
 
             }
@@ -884,6 +788,39 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
 
         return result;
     }
+
+    function updateFieldOnTransaction(transactionId,recordType,matchingLines,cmField,cmCreated) {
+
+        var forecastedInvoice = record.load({
+            type: recordType,
+            id: transactionId
+        });
+        var lineCountForecastedInvoice = forecastedInvoice.getLineCount({ sublistId: 'item' });
+        var isMatchingLineRate = false;
+
+        matchingLines.forEach(function (linePair) {
+            log.debug('linePair', linePair)
+
+            for (var y = 0; y < lineCountForecastedInvoice; y++) {
+                //var forecastedInvoiceLineRate = forecastedInvoice.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: y });
+                //log.debug('forecastedInvoiceLineRate', forecastedInvoiceLineRate)
+                var eTailLineId = forecastedInvoice.getSublistValue({ sublistId: 'item', fieldId: 'custcol_celigo_etail_order_line_id', line: y });
+
+                if (linePair.eTailLineId === eTailLineId) {
+                    isMatchingLineRate = true;
+                    break;
+                }
+            }
+
+            if (isMatchingLineRate) {
+                forecastedInvoice.setSublistValue({ sublistId: 'item', fieldId: cmField, line: y, value: cmCreated });
+            }
+        });
+
+        var foreCastedInvoiceUpdated = forecastedInvoice.save();
+        log.audit('Transaction Updated with Cancellation CM Link', 'Type: ' + recordType + ', ID: ' + transactionId + ', Saved: ' + foreCastedInvoiceUpdated);
+    }
+
 
 
     /**
@@ -906,7 +843,7 @@ define(['N/search', 'N/record', 'N/email', 'N/runtime', 'N/log'], (search, recor
      * @param {number} lineIndex - The index of the line to be updated.
      * @param {number} newItem - The internal ID of the new item to be added to the credit memo.
      */
-    function updateCreditMemoLine(creditMemo, lineIndex, newItem, invoiceID, cmID, cmNumber, processAsRate) {
+    function updateCreditMemoLineGL(creditMemo, lineIndex, newItem, invoiceID, cmID, cmNumber, processAsRate) {
         // Retrieve existing values from the line at lineIndex
         var quantity = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'quantity', line: lineIndex });
         var rate = creditMemo.getSublistValue({ sublistId: 'item', fieldId: 'rate', line: lineIndex });

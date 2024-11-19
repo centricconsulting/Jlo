@@ -126,6 +126,8 @@ define(['N/record', 'N/search', 'N/runtime', 'N/email', 'N/url'], function (reco
 
             log.debug("delete deposit application");
 
+            // Mazuk - save invoice tran date
+
             // Delete the invoice record
             record.delete({
                 type: record.Type.INVOICE,
