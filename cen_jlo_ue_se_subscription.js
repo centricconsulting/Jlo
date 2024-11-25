@@ -35,6 +35,9 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
 
         var jloLocation = newRecord.getValue({fieldId: 'location' });
         var creationDate = newRecord.getValue({fieldId: 'createddate' });
+        
+        var etailID = newRecord.getValue({fieldId: 'custbody_celigo_etail_order_id' });
+
 
         var setInstallOrderFlag = false;
         var setDigitalPmtFlag = false;
@@ -307,6 +310,11 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
         newRecord.setValue({
             fieldId: 'custbody_cen_jlo_choice',
             value: setChoiceBundle
+        });
+
+        newRecord.setValue({
+            fieldId: 'custbody_jlo_etail_order_id',
+            value: etailID || '' // set empty string if etailID is null
         });
 
         // Save the Sales Order record
