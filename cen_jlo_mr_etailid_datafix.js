@@ -53,7 +53,9 @@ define(['N/search', 'N/record', 'N/runtime', 'N/format', 'N/error'], function(se
                     "AND", 
                     ["custbody_jlo_etail_order_id","isempty",""], 
                     "AND", 
-                    ["mainline","is","T"]
+                    ["mainline","is","T"],
+                    "AND",
+                    ["custbody_celigo_etail_order_id","isnotempty",""]
                 ],
                 columns: [
                     search.createColumn({name: 'internalid'}),
