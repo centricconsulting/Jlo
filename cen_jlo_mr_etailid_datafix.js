@@ -33,20 +33,31 @@ define(['N/search', 'N/record', 'N/runtime', 'N/format', 'N/error'], function(se
             }
             
             var soSearchObj = search.create({
-                type: "salesorder",
+                type: "transaction",
                 settings:[{"name":"consolidationtype","value":"ACCTTYPE"},{"name":"includeperiodendtransactions","value":"F"}],
                 filters:
                 [
-                   ["type","anyof","SalesOrd"], 
-                   'AND',    
-                    ['mainline', 'is', 'T'],
-                    'AND',
-                    ['trandate', 'onorafter', formattedStartDate],
-                    'AND',
-                    ['trandate', 'onorbefore', formattedEndDate]
+                   //["type","anyof","SalesOrd","CustInvc"], 
+                   //["type","anyof","SalesOrd"],
+                   //'AND',    
+                    //['mainline', 'is', 'T'],
+                    //'AND',
+                    //['trandate', 'onorafter', formattedStartDate],
+                    //'AND',
+                    //['trandate', 'onorbefore', formattedEndDate],
+                    //'AND',
+                    //['custbody_jlo_etail_order_id', 'isempty','']
+                    ["type","anyof","SalesOrd","CustInvc"], 
+                    "AND", 
+                    ["trandate","within",formattedStartDate,formattedEndDate], 
+                    "AND", 
+                    ["custbody_jlo_etail_order_id","isempty",""], 
+                    "AND", 
+                    ["mainline","is","T"]
                 ],
                 columns: [
                     search.createColumn({name: 'internalid'}),
+                    search.createColumn({name: 'type'}),
                     search.createColumn({name: 'custbody_celigo_etail_order_id'}),
                     search.createColumn({name: 'trandate'})
                 ]
@@ -73,12 +84,14 @@ define(['N/search', 'N/record', 'N/runtime', 'N/format', 'N/error'], function(se
         try {
             const searchResult = JSON.parse(context.value);
             const soId = searchResult.values.internalid.value;
+            const tranType = searchResult.values.type.value;
             const etailId = searchResult.values.custbody_celigo_etail_order_id;
             
             context.write({
                 key: soId,
                 value: {
                     soId: soId,
+                    tranType: tranType,
                     etailId: etailId || ''
                 }
             });
@@ -99,9 +112,16 @@ define(['N/search', 'N/record', 'N/runtime', 'N/format', 'N/error'], function(se
             if (runtime.getCurrentScript().getRemainingUsage() < 100) {
                 return;
             }
-            
+            log.debug("tran",data.tranType+":"+data.soId+":"+data.etailId);
+            var recType = null;
+            if (data.tranType === "SalesOrd") {
+                recType = record.Type.SALES_ORDER; 
+            } else if (data.tranType === 'CustInvc') {
+                recType = record.Type.INVOICE;
+            }
             record.submitFields({
-                type: record.Type.SALES_ORDER,
+                //type: record.Type.SALES_ORDER,
+                type: recType,
                 id: data.soId,
                 values: {
                     'custbody_jlo_etail_order_id': data.etailId
@@ -124,10 +144,10 @@ define(['N/search', 'N/record', 'N/runtime', 'N/format', 'N/error'], function(se
 
     function summarize(summary) {
         try {
-            log.audit('Script Summary', {
-                'Total Records Processed': summary.reduceSummary.reducedKeys.length,
-                'Total Records with Errors': summary.reduceSummary.errors.length
-            });
+            log.audit('Script Summary', 
+                'Total Records Processed:' + summary.reduceSummary.keys.length +
+                ', Total Records with Errors:' + summary.reduceSummary.errors.length
+            );
 
             // Log all errors
             summary.reduceSummary.errors.iterator().each(function(key, error) {
