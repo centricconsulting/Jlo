@@ -40,6 +40,7 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
 
 
         var setInstallOrderFlag = false;
+        var installmentETailOrderId = '';
         var setDigitalPmtFlag = false;
         var setChoiceBundle = false;
 
@@ -118,6 +119,12 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
             if (itemId == digitalPaymentItem) {
                 log.debug("digital payment item","true");
                 setDigitalPmtFlag = true;
+
+                installmentETailOrderId = newRecord.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'custcolcustcol_shpfy_orgnl_order',
+                    line: i
+                });      
             }
 
             if (itemId == choiceBundleItem) {
@@ -315,6 +322,11 @@ define(['N/record', 'N/search', 'N/runtime'], function (record, search, runtime)
         newRecord.setValue({
             fieldId: 'custbody_jlo_etail_order_id',
             value: etailID || '' // set empty string if etailID is null
+        });
+
+        newRecord.setValue({
+            fieldId: 'custbody_jlo_etail_link_pmt',
+            value: installmentETailOrderId || '' // set empty string if etailID is null
         });
 
         // Save the Sales Order record
