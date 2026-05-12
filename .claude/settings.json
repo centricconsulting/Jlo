@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(suitecloud project:deploy*)",
+      "Bash(SKIP_TESTS=true suitecloud project:deploy*)",
+      "Bash(suitecloud project:validate*)",
+      "Bash(suitecloud object:import*)",
+      "Bash(suitecloud object:list*)"
+    ]
+  }
+}
