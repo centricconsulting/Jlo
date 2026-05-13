@@ -1,13 +1,6 @@
----
-title: TypeScript Workflow
-description: How TypeScript sources compile to AMD JavaScript, file headers, imports, and design conventions
----
-
 # TypeScript Workflow
 
 How the TypeScript source under `src/TypeScripts/` becomes JavaScript that NetSuite executes, plus the conventions every script in this repo follows.
-
----
 
 ## Source of truth
 
@@ -17,10 +10,8 @@ How the TypeScript source under `src/TypeScripts/` becomes JavaScript that NetSu
 
 The TypeScript compiler is invoked through `npm run tsc` (or directly as `tsc`). The `suitecloud project:deploy` command runs the compile step automatically before pushing to NetSuite.
 
-!!! warning "Never hand-edit compiled JS in a subdirectory"
-    Anything under `src/FileCabinet/SuiteScripts/<subdir>/` is regenerated on the next `tsc` run. Edits there are lost. The `scripts/utils/clean-orphaned-js.js` script also deletes any subdirectory JS that lacks a matching TS source, which prevents drift.
-
----
+> [!WARNING]
+> Never hand-edit compiled JS in a subdirectory. Anything under `src/FileCabinet/SuiteScripts/<subdir>/` is regenerated on the next `tsc` run, edits there are lost. The `scripts/utils/clean-orphaned-js.js` script also deletes any subdirectory JS that lacks a matching TS source, which prevents drift.
 
 ## The exception: native JS at the SuiteScripts root
 
@@ -29,8 +20,6 @@ Files at the **root** of `src/FileCabinet/SuiteScripts/` (no subdirectory) are p
 - Examples: `cen_jlo_mr_correct_payments.js`, `JLO_UE_Set_INV_Date_To_SO_Date.js`, `centric_jlb_je_default_ue.js`.
 - The orphan-cleanup script is configured to skip the root directory (see `scripts/utils/clean-orphaned-js.js`).
 - If you rewrite one of these in TypeScript, place the new `.ts` under `src/TypeScripts/<domain>/` so the compiled `.js` lands in `src/FileCabinet/SuiteScripts/<domain>/`, never at the root.
-
----
 
 ## File headers
 
@@ -45,8 +34,6 @@ Every script needs NetSuite JSDoc decorators at the top of the file. Without the
 ```
 
 `@NScriptType` matches the script's role: `UserEventScript`, `ClientScript`, `Suitelet`, `MapReduceScript`, `RESTlet`, `ScheduledScript`, `WorkflowActionScript`. Service modules (no NetSuite entry point) omit `@NScriptType`.
-
----
 
 ## Imports
 
@@ -65,8 +52,6 @@ import { computeTax } from '../services/taxService';
 
 The AMD form is what the NetSuite runtime expects when it loads compiled modules. The ES6 form is what TypeScript prefers for everything else, and the AMD output handles it correctly.
 
----
-
 ## Design philosophy
 
 The TypeScript in this repo stays plain on purpose. Compiled output should be legible to someone who has never written TypeScript.
@@ -76,21 +61,19 @@ The TypeScript in this repo stays plain on purpose. Compiled output should be le
 - **No advanced generics.** If a type is genuinely needed, write it out.
 - **`as const` objects** in place of the TypeScript `enum` keyword:
 
-    ```typescript
-    export const ApprovalStatus = {
-      Pending: 'pending',
-      Approved: 'approved',
-      Rejected: 'rejected',
-    } as const;
+  ```typescript
+  export const ApprovalStatus = {
+    Pending: 'pending',
+    Approved: 'approved',
+    Rejected: 'rejected',
+  } as const;
 
-    export type ApprovalStatus = typeof ApprovalStatus[keyof typeof ApprovalStatus];
-    ```
-
----
+  export type ApprovalStatus = typeof ApprovalStatus[keyof typeof ApprovalStatus];
+  ```
 
 ## Adding a new script
 
-1. Create the `.ts` file under the appropriate domain: `src/TypeScripts/<domain>/<script_name>_<suffix>.ts`. Use the suffix that matches the script type (see [Quick reference](index.md#quick-reference) for the suffix table).
+1. Create the `.ts` file under the appropriate domain: `src/TypeScripts/<domain>/<script_name>_<suffix>.ts`. Use the suffix that matches the script type (see the suffix table in [the developer index](index.md#script-type-suffixes)).
 2. Add the NetSuite JSDoc header.
 3. Compile: `npm run tsc`. Confirm the matching `.js` appears under `src/FileCabinet/SuiteScripts/<domain>/`.
 4. Add or update the NetSuite metadata XML in `src/Objects/` (or import it with `suitecloud object:import`).
@@ -98,8 +81,6 @@ The TypeScript in this repo stays plain on purpose. Compiled output should be le
 6. Validate, then deploy.
 
 The full deploy steps are in [Deploying](deploying.md).
-
----
 
 ## When working in a pre-SDF JS file
 

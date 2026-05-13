@@ -1,13 +1,6 @@
----
-title: Testing
-description: Jest setup, the compiled-JS test pattern, and mocking the NetSuite N/* modules
----
-
 # Testing
 
 The repo uses `@oracle/suitecloud-unit-testing` with Jest. Tests run against the **compiled JavaScript**, not the TypeScript source, which matches what NetSuite executes.
-
----
 
 ## Running tests
 
@@ -19,8 +12,6 @@ npm test -- path/to/test.js    # Specific test file
 ```
 
 `suitecloud project:deploy` runs the suite before deploying. Set `SKIP_TESTS=true` to bypass for an emergency deploy, but the default expectation is that tests pass.
-
----
 
 ## Layout
 
@@ -34,8 +25,6 @@ __tests__/
 
 The test tree mirrors `src/TypeScripts/`. Coverage is computed via `collectCoverageFrom` in `jest.config.js`, which excludes script entry points (anything that imports `N/*`) since those rely on the NetSuite runtime.
 
----
-
 ## The compiled-JS pattern
 
 Tests import the **compiled output**, not the `.ts` source:
@@ -45,8 +34,6 @@ const Foo = require('SuiteScripts/<domain>/models/Foo');
 ```
 
 This means you must run `npm run tsc` (or `tsc --watch`) before tests pick up TS changes. `npm test` does not invoke the compiler.
-
----
 
 ## Mocking `N/*` modules
 
@@ -73,19 +60,15 @@ const myScript = require('SuiteScripts/<domain>/myScript');
 
 Reset mocks between tests with `jest.clearAllMocks()` so per-test expectations don't leak.
 
----
-
 ## What to unit test, what to validate in sandbox
 
-| Layer | Coverage approach |
-|-------|-------------------|
-| **Pure-logic models** (no `N/*` imports) | Unit tested directly. No mocking needed. |
-| **Services** (orchestrate `N/*` calls) | Light unit tests with mocks for branching logic. Real behavior verified in sandbox. |
-| **Scripts** (entry points) | Excluded from coverage. Validated end-to-end in sandbox. |
+| Layer                                      | Coverage approach                                                       |
+| ------------------------------------------ | ----------------------------------------------------------------------- |
+| **Pure-logic models** (no `N/*` imports)   | Unit tested directly. No mocking needed.                                |
+| **Services** (orchestrate `N/*` calls)     | Light unit tests with mocks for branching logic. Real behavior verified in sandbox. |
+| **Scripts** (entry points)                 | Excluded from coverage. Validated end-to-end in sandbox.                |
 
 The bias is toward extracting logic into pure models so it can be tested without running NetSuite. Services and scripts stay thin.
-
----
 
 ## Fixtures
 

@@ -2,7 +2,7 @@
 
 NetSuite SDF project for JLo. Account Customization Project (ACP), not a SuiteApp. TypeScript sources compile to AMD modules deployed into the customer's NetSuite File Cabinet.
 
-For detailed guidance, see the [developer documentation](docs/developers/index.md) (also served as a site via `npm run docs:serve`).
+For detailed guidance, see the [developer documentation](docs/developers/index.md).
 
 ## Requirements
 
@@ -25,7 +25,7 @@ src/
 __tests__/             Jest tests (run against compiled JS)
 scripts/               Build + maintenance utilities
 legacy/                Pre-SDF archive, outside deploy scope
-docs/                  MkDocs documentation source
+docs/                  Documentation (read on GitHub)
 ```
 
 ## Notice for prior contributors (JavaScript-only is still fine)
@@ -53,7 +53,6 @@ npm run lint                   # ESLint
 suitecloud project:validate    # Validate before deploy
 suitecloud project:deploy      # Deploy (runs cleanup, tsc, tests)
 SKIP_TESTS=true suitecloud project:deploy
-npm run docs:serve             # Local docs preview
 ```
 
 ## Deploying

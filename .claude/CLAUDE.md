@@ -15,7 +15,7 @@ This repo was originally a flat dump of JavaScript files (`centricconsulting/Jlo
 The repo is documented for two audiences. Prefer reading these over re-deriving conventions:
 
 - `README.md` , top-level orientation. Includes the "Notice for prior contributors" about the JS-only flow at `src/FileCabinet/SuiteScripts/` root.
-- `docs/developers/index.md` , landing page for the developer docs (also served via `npm run docs:serve`). Links to:
+- `docs/developers/index.md` , landing page for the developer docs. Links to:
   - `docs/developers/setup.md` , environment setup, install, auth.
   - `docs/developers/typescript.md` , TS source flow, file headers, imports, design philosophy, native-JS-at-root exception.
   - `docs/developers/testing.md` , Jest setup, the compiled-JS test pattern, mocking `N/*`.

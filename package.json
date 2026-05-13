@@ -6,9 +6,7 @@
     "test:unit": "jest --selectProjects=unit --coverage",
     "tsc": "tsc",
     "lint": "eslint src/",
-    "clean:orphaned": "node scripts/utils/clean-orphaned-js.js",
-    "docs:serve": "mkdocs serve",
-    "docs:build": "mkdocs build --clean"
+    "clean:orphaned": "node scripts/utils/clean-orphaned-js.js"
   },
   "devDependencies": {
     "@hitc/netsuite-types": "^2025.2.0",

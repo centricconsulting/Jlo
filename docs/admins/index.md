@@ -1,8 +1,3 @@
----
-title: Administrator Documentation
-description: Configuration and deployment procedures for NetSuite administrators
----
-
 # Administrator Documentation
 
 This section is reserved for NetSuite administrator-facing documentation: deployment procedures, configuration steps, roles and permissions, and troubleshooting. Pages will be added as the implementation matures.
