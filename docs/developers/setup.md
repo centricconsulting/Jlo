@@ -1,13 +1,6 @@
----
-title: Environment Setup
-description: Install dependencies, authenticate against NetSuite, and verify the project builds locally
----
-
 # Environment Setup
 
 What you need installed and configured before you can compile, test, and deploy this project.
-
----
 
 ## Prerequisites
 
@@ -15,8 +8,6 @@ What you need installed and configured before you can compile, test, and deploy 
 - **TypeScript** is installed as a dev dependency, no global install needed.
 - **SuiteCloud CLI** , Oracle's tool for SDF projects. Install per [Oracle's documentation](https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_1558708810.html).
 - A NetSuite account with SDF permissions on the JLo sandbox.
-
----
 
 ## Install dependencies
 
@@ -27,8 +18,6 @@ npm install
 ```
 
 This pulls in TypeScript, Jest, the SuiteCloud unit-testing harness, ESLint, and the NetSuite type definitions.
-
----
 
 ## Authenticate with NetSuite
 
@@ -46,8 +35,6 @@ To verify it worked:
 suitecloud account:manageauth --list
 ```
 
----
-
 ## Verify the build
 
 Compile TypeScript and run the test suite to confirm everything is wired up:
@@ -59,16 +46,8 @@ npm test
 
 You should see compiled `.js` files appear under `src/FileCabinet/SuiteScripts/<subdir>/` and Jest reporting passing tests.
 
-To preview the documentation site locally:
-
-```bash
-npm run docs:serve
-```
-
----
-
 ## Next steps
 
-- [TypeScript workflow](typescript.md) , how sources compile, file header conventions, import style.
+- [TypeScript Workflow](typescript.md) , how sources compile, file header conventions, import style.
 - [Testing](testing.md) , how the Jest suite is structured.
 - [Deploying](deploying.md) , environment switching and the deploy.xml / manifest.xml workflow.
