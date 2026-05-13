@@ -1,129 +1,52 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) sessions in this repository. **Detailed conventions live in `docs/developers/`** , this file holds project context plus the rules that need to be in front of you every session.
 
 ## Project Overview
 
-NetSuite SDF project for JLo (Centric client). Account Customization Project (ACP), not a SuiteApp. TypeScript compiles to AMD modules under `src/FileCabinet/SuiteScripts/`; pre-existing native JavaScript lives at the root of `SuiteScripts/`.
+NetSuite SDF project for JLo (Centric client). Account Customization Project (ACP), not a SuiteApp. TypeScript compiles to AMD modules under `src/FileCabinet/SuiteScripts/`; pre-existing native JavaScript lives at the **root** of `SuiteScripts/`.
 
 ## Repo history
 
-This repo was originally a flat dump of JavaScript files (`centricconsulting/Jlo`) used by colleagues without SDF tooling. It was restructured into SDF layout in `setup/sdf-restructure`. Existing JS files moved into `src/FileCabinet/SuiteScripts/` (preserving git history via `git mv`). `archive/` and `debug/` moved to a top-level `legacy/` folder, kept outside the SDF deploy scope.
+This repo was originally a flat dump of JavaScript files (`centricconsulting/Jlo`) used by colleagues without SDF tooling. It was restructured into SDF layout on `setup/sdf-restructure`. Existing JS files moved into `src/FileCabinet/SuiteScripts/` (preserving git history via `git mv`). `archive/` and `debug/` moved to a top-level `legacy/` folder, kept outside the SDF deploy scope.
 
-## Commands
+## Documentation map
 
-```bash
-# Compile TypeScript (must run before deployment)
-tsc
+The repo is documented for two audiences. Prefer reading these over re-deriving conventions:
 
-# Run all tests with coverage
-npm test
+- `README.md` , top-level orientation. Includes the "Notice for prior contributors" about the JS-only flow at `src/FileCabinet/SuiteScripts/` root.
+- `docs/developers/index.md` , landing page for the developer docs (also served via `npm run docs:serve`). Links to:
+  - `docs/developers/setup.md` , environment setup, install, auth.
+  - `docs/developers/typescript.md` , TS source flow, file headers, imports, design philosophy, native-JS-at-root exception.
+  - `docs/developers/testing.md` , Jest setup, the compiled-JS test pattern, mocking `N/*`.
+  - `docs/developers/deploying.md` , environments, `deploy.xml` / `manifest.xml` discipline, validate/deploy.
 
-# Run only unit tests
-npm run test:unit
-
-# Run a specific test file
-npm test -- path/to/test
-
-# Watch mode
-npm test -- --watch
-
-# Validate before deploy
-suitecloud project:validate
-
-# Deploy to NetSuite (auto-runs: cleanup, tsc, tests)
-suitecloud project:deploy
-
-# Skip tests during deploy
-SKIP_TESTS=true suitecloud project:deploy
-```
-
-### Switching Accounts
-
-Switch between NetSuite environments by editing `project.json`:
-
-```json
-{
-  "defaultAuthId": "jlo-sb"
-}
-```
-
-| Auth ID | Environment |
-|---------|-------------|
-| `jlo-sb` | Sandbox |
-
-(Add production auth ID here once configured. Never set production as the default.)
-
-## Architecture
-
-### Directory Structure
-- `src/TypeScripts/` , TypeScript source (EDIT HERE). Organize by domain.
-- `src/FileCabinet/SuiteScripts/` , compiled JavaScript AND native JS at root. Subdirectory JS is AUTO-GENERATED from TS; never edit. Root-level JS is native (legacy from pre-SDF days).
-- `src/Objects/` , NetSuite metadata XML files (imported via `suitecloud object:import`).
-- `__tests__/` , Test files mirroring TypeScripts structure.
-- `legacy/` , Archived/debug JS from the pre-SDF era. Outside the SDF deploy scope. Preserved for reference, not deployed.
-
-### TypeScript Compilation
-- Source: `src/TypeScripts/` , Output: `src/FileCabinet/SuiteScripts/`
-- Module format: AMD (required by NetSuite)
-- Orphaned JS files in subdirectories are auto-cleaned before deploy. Root-level JS files are preserved (see `scripts/utils/clean-orphaned-js.js`).
-
-### Native JS at root convention
-Pre-existing JS files live at the root of `src/FileCabinet/SuiteScripts/`. The orphan-cleanup script explicitly skips them (lines 29-31 of `clean-orphaned-js.js`). If you rewrite one in TypeScript, place the `.ts` under `src/TypeScripts/<subdir>/` so the compiled `.js` lands in `src/FileCabinet/SuiteScripts/<subdir>/`, not at root.
-
-### Script Types and Suffixes
-- `_ue` , User Event (record triggers)
-- `_cs` , Client Script (browser form events)
-- `_sl` , Suitelet (custom pages)
-- `_wa` , Workflow Action
-- `_mr` , Map/Reduce (large data)
-- `_rl` , RESTlet (API endpoints)
-- `_sc` , Scheduled Script
-- `_svc` , Service (orchestrates models + NetSuite APIs, called by scripts)
-
-### TypeScript Conventions
-
-**Import style (intentional dual convention):**
-- NetSuite modules use AMD require: `import log = require('N/log');`
-- Internal modules use ES6 import: `import { Foo } from '../models/Foo';`
-
-**File headers:** Every script file needs NetSuite JSDoc decorators:
-```typescript
-/**
- * @NApiVersion 2.1
- * @NScriptType MapReduceScript
- * @NModuleScope SameAccount
- */
-```
-
-**Design philosophy:**
-- Keep TypeScript simple. The compiled JS should be readable by non-TypeScript developers.
-- Use explicit types on function parameters and return values.
-- Prefer clear control flow over ternary chains or complex generics.
-- Use `as const` enums rather than the TypeScript `enum` keyword.
+When the user asks "how do I X" for X covered above, read the relevant doc rather than answering from memory.
 
 ## Critical Rules
 
-- DO NOT deploy to production without being asked. Sandbox deploys (`jlo-sb`) are fine when the task calls for it; always confirm the `defaultAuthId` in `project.json` before running `suitecloud project:deploy`.
-- `deploy.xml` or "the deployment file" refers to `src/deploy.xml`.
-- Before deploying, rebuild `deploy.xml` from scratch with ONLY the objects for the current task. Do not carry forward objects from previous deployments.
-- Before deploying, trim `manifest.xml` to only include dependencies required by the objects in `deploy.xml`.
-- The `legacy/` folder is outside the SDF deploy scope. Do not move files from `legacy/` into `src/FileCabinet/SuiteScripts/` without confirming the file is still active in NetSuite.
+These are the non-negotiables for Claude sessions; the developer docs explain them in more detail.
 
-## Testing
+- **No production deploys without being asked.** Sandbox deploys (`jlo-sb`) are fine when the task calls for it. Always confirm `defaultAuthId` in `project.json` before running `suitecloud project:deploy`.
+- **`deploy.xml`** / "the deployment file" refers to `src/deploy.xml`. Before deploying, rebuild it from scratch with **only** the objects for the current task. Do not carry forward objects from previous deploys.
+- **`manifest.xml`** must be trimmed to only the dependencies required by the objects in the current `deploy.xml`.
+- **Never hand-edit JS under `src/FileCabinet/SuiteScripts/<subdir>/`.** Those are TypeScript build outputs. Edit the `.ts` under `src/TypeScripts/<subdir>/` and compile.
+- **Root-level JS in `src/FileCabinet/SuiteScripts/` is the deliberate exception.** Those are pre-SDF native JavaScript files, hand-edited and deployed as-is. The orphan-cleanup script preserves them.
+- **`legacy/` is outside the SDF deploy scope.** Do not move files from `legacy/` into `src/FileCabinet/SuiteScripts/` without confirming the file is still active in NetSuite.
 
-Uses `@oracle/suitecloud-unit-testing` with Jest. Tests run against compiled JS, not TypeScript source.
+## Quick command reference
 
-### Structure
-- Unit tests: `__tests__/[domain]/models/*.test.js`, `__tests__/[domain]/services/*.test.js`
-- Fixtures: `__tests__/[domain]/fixtures/*.js` (shared test data)
-- Scripts (entry points with N/* deps) excluded from coverage via `collectCoverageFrom`; pure logic models are testable
+```bash
+tsc                            # Compile TypeScript
+npm test                       # All tests with coverage
+npm run test:unit              # Unit tests only
+npm test -- path/to/test       # Specific test file
+suitecloud project:validate    # Validate before deploy
+suitecloud project:deploy      # Deploy (auto-runs cleanup, tsc, tests)
+SKIP_TESTS=true suitecloud project:deploy
+```
 
-### Patterns
-- **Tests import compiled JS**: `require('SuiteScripts/<domain>/models/Foo')`, not the `.ts` source
-- **Mock N/* modules** before importing the module under test. Reset with `jest.clearAllMocks()` in `beforeEach`.
-- **Pure logic models** need no mocking. Test directly.
-- **Services and scripts** depend on NetSuite APIs and are validated in sandbox, not unit tested.
+See `docs/developers/index.md` for the full command and suffix reference.
 
 ## Code Markers
 

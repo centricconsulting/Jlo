@@ -61,3 +61,13 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Developers:
+    - developers/index.md
+    - Environment Setup: developers/setup.md
+    - TypeScript Workflow: developers/typescript.md
+    - Testing: developers/testing.md
+    - Deploying: developers/deploying.md
+  - Admins:
+    - admins/index.md
+  - Users:
+    - users/index.md
