@@ -1,6 +1,8 @@
 <deploy>
-  <objects>
-  </objects>
   <files>
+    <path>~/FileCabinet/SuiteScripts/journalEntries/cen_jlo_je_reversal_ue.js</path>
   </files>
+  <objects>
+    <path>~/Objects/usereventscript/customscript_cen_jlo_je_reversal_ue.xml</path>
+  </objects>
 </deploy>
