@@ -3,7 +3,7 @@
   <frameworkversion>1.0</frameworkversion>
   <dependencies>
     <features>
-      <feature required="true">SERVERSIDESCRIPTING</feature>
+      <feature required="true">ADVANCEDPRINTING</feature>
     </features>
   </dependencies>
 </manifest>
