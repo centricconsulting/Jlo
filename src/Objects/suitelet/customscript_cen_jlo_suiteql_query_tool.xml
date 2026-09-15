@@ -1,0 +1,22 @@
+<suitelet scriptid="customscript_cen_jlo_suiteql_query_tool">
+  <description>SuiteQL Query Tool v2026.1 by Tim Dietrich (MIT). Personal query utility; TESTING status keeps it visible to the script owner only.</description>
+  <isinactive>F</isinactive>
+  <name>SuiteQL Query Tool</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/suiteql-query-tool.v2026.1.suitelet.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_cen_jlo_suiteql_query_tool">
+      <allemployees>F</allemployees>
+      <allpartners>F</allpartners>
+      <allroles>F</allroles>
+      <isdeployed>T</isdeployed>
+      <isonline>F</isonline>
+      <loglevel>ERROR</loglevel>
+      <status>TESTING</status>
+      <title>SuiteQL Query Tool</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>

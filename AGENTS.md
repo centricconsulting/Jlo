@@ -8,7 +8,7 @@ NetSuite SDF project for JLo (JLo Beauty & Lifestyle, LLC; Centric managed-servi
 
 | Auth id | Account | Environment | Query Tool |
 |---|---|---|---|
-| `jlo-sb` | `6966778_SB1` | Sandbox | not deployed |
+| `jlo-sb` | `6966778_SB1` | Sandbox | `/app/site/hosting/scriptlet.nl?script=customscript_cen_jlo_suiteql_query_tool&deploy=customdeploy_cen_jlo_suiteql_query_tool` |
 | `jlo-prod` | `6966778` | Production | not deployed |
 
 `project.json` (gitignored) currently points at `jlo-sb`. Always confirm `defaultAuthId` before `suitecloud project:deploy`.
