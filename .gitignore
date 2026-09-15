@@ -47,3 +47,8 @@ jlo-docs.zip
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock
+.claude/local/
+
+# Claude Code local
+.claude/settings.local.json
+temp_explore/

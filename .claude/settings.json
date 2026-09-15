@@ -5,7 +5,23 @@
       "Bash(SKIP_TESTS=true suitecloud project:deploy*)",
       "Bash(suitecloud project:validate*)",
       "Bash(suitecloud object:import*)",
-      "Bash(suitecloud object:list*)"
+      "Bash(suitecloud object:list*)",
+      "Bash(suitecloud account:manageauth --list*)",
+      "Bash(ns-validate*)",
+      "Bash(tsc*)",
+      "Bash(npm test*)"
     ]
+  },
+  "enabledPlugins": {
+    "ns@carypruitt": true,
+    "netsuite-suitecloud@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "carypruitt": {
+      "source": {
+        "source": "github",
+        "repo": "carypruitt/claude-plugins"
+      }
+    }
   }
 }
