@@ -13,14 +13,14 @@
     ]
   },
   "enabledPlugins": {
-    "ns@carypruitt": true,
+    "ns@centric-netsuite": true,
     "netsuite-suitecloud@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
-    "carypruitt": {
+    "centric-netsuite": {
       "source": {
         "source": "github",
-        "repo": "carypruitt/claude-plugins"
+        "repo": "centricconsulting/netsuite-claude-plugins"
       }
     }
   }
