@@ -1,0 +1,22 @@
+<suitelet scriptid="customscript_cen_jlo_so_proforma_sl">
+  <description>Returns a sales order's pro forma invoice PDF (custtmpl_cen_jlo_so_proforma) for ?soid=&lt;internal id&gt;. Opened by the Print Pro Forma button.</description>
+  <isinactive>F</isinactive>
+  <name>JLo - Print Pro Forma Invoice</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/salesOrders/cen_jlo_so_proforma_sl.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_cen_jlo_so_proforma_sl">
+      <allemployees>T</allemployees>
+      <allroles>T</allroles>
+      <audslctrole></audslctrole>
+      <isdeployed>T</isdeployed>
+      <isonline>F</isonline>
+      <loglevel>ERROR</loglevel>
+      <status>RELEASED</status>
+      <title>JLo - Print Pro Forma Invoice</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>

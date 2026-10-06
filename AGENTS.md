@@ -8,8 +8,10 @@ NetSuite SDF project for JLo (JLo Beauty & Lifestyle, LLC; Centric managed-servi
 
 | Auth id | Account | Environment | Query Tool |
 |---|---|---|---|
-| `jlo-sb` | `6966778_SB1` | Sandbox | `/app/site/hosting/scriptlet.nl?script=customscript_cen_jlo_suiteql_query_tool&deploy=customdeploy_cen_jlo_suiteql_query_tool` |
-| `jlo-prod` | `6966778` | Production | not deployed |
+| `jlo-sb` | `6966778_SB1` | Sandbox | `/app/site/hosting/scriptlet.nl?script=1110&deploy=1` |
+| `jlo-prod` | `6966778` | Production | `/app/site/hosting/scriptlet.nl?script=1110&deploy=1` |
+
+The Query Tool is production's "SuiteQL" Suitelet (`customscript1110`), carried into the sandbox by the 2026-10-01 refresh. That refresh removed our own `customscript_cen_jlo_suiteql_query_tool` from the sandbox; its object stays in the repo but is not deployed anywhere.
 
 `project.json` (gitignored) currently points at `jlo-sb`. Always confirm `defaultAuthId` before `suitecloud project:deploy`.
 
@@ -20,6 +22,7 @@ NetSuite SDF project for JLo (JLo Beauty & Lifestyle, LLC; Centric managed-servi
 - **In `deploy.xml`, put `<files>` before `<objects>`.** NetSuite resolves a script object's `<scriptfile>` at object-create time; the reverse order passes validation and fails at "Begin deployment" with `The file ... referenced by object field 'scriptfile' could not be resolved.`
 - `ns-validate` (or `suitecloud project:validate`) before every deploy.
 - Never hand-edit compiled JS under `src/FileCabinet/SuiteScripts/<subdir>/`. Edit the `.ts` under `src/TypeScripts/<subdir>/` and compile.
+- **Compile with the project's TypeScript** (`node_modules/.bin` first on `PATH`, or `npx tsc`). A global TypeScript 7 rejects `module: amd`, and `suitecloud project:deploy` runs whichever `tsc` is on `PATH`.
 - **Root-level JS in `src/FileCabinet/SuiteScripts/` is the deliberate exception.** Pre-SDF native JavaScript, hand-edited and deployed as-is. The orphan-cleanup script preserves them.
 - `legacy/` is outside the SDF deploy scope. Do not move files from `legacy/` into `src/FileCabinet/SuiteScripts/` without confirming the file is still active in NetSuite.
 
@@ -70,6 +73,7 @@ SKIP_TESTS=true suitecloud project:deploy
 ## Domains
 
 - `journalEntries/`: JE reversal-date clear-on-copy (`cen_jlo_je_reversal_ue`).
+- `salesOrders/`: Print Pro Forma button on sales orders for prepayment customers. `cen_jlo_so_proforma_ue` adds the button in view mode, `_cs` opens `_sl`, which renders the order on `custtmpl_cen_jlo_so_proforma` through `_svc`; pure helpers in `models/proForma`.
 - Root `SuiteScripts/`: pre-SDF native JS (SO/invoice tax, class updates, PO assembly item description, MR data fixes).
 - `src/Objects/custtmpl_jlb_po_template`: printed PO advanced PDF template.
 

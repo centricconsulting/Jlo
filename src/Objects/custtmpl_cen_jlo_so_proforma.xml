@@ -1,0 +1,9 @@
+<advancedpdftemplate scriptid="custtmpl_cen_jlo_so_proforma" standard="STDTMPLSALESORD">
+  <description>Pro forma invoice for prepayment customers. Rendered only by customscript_cen_jlo_so_proforma_sl from the Print Pro Forma button; not attached to any form.</description>
+  <displaysourcecode>T</displaysourcecode>
+  <isinactive>F</isinactive>
+  <preferred>F</preferred>
+  <printtype>TRANSACTION</printtype>
+  <title>JLo Pro Forma Invoice PDF/HTML Template</title>
+  <trantype>SALESORD</trantype>
+</advancedpdftemplate>
