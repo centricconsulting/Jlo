@@ -22,7 +22,7 @@ The Query Tool is production's "SuiteQL" Suitelet (`customscript1110`), carried 
 - **In `deploy.xml`, put `<files>` before `<objects>`.** NetSuite resolves a script object's `<scriptfile>` at object-create time; the reverse order passes validation and fails at "Begin deployment" with `The file ... referenced by object field 'scriptfile' could not be resolved.`
 - `ns-validate` (or `suitecloud project:validate`) before every deploy.
 - Never hand-edit compiled JS under `src/FileCabinet/SuiteScripts/<subdir>/`. Edit the `.ts` under `src/TypeScripts/<subdir>/` and compile.
-- **Compile with the project's TypeScript** (`node_modules/.bin` first on `PATH`, or `npx tsc`). A global TypeScript 7 rejects `module: amd`, and `suitecloud project:deploy` runs whichever `tsc` is on `PATH`.
+- **Compile with the project's TypeScript: `npx tsc`, never a bare `tsc`.** A global TypeScript 7 rejects `module: amd`. The deploy hook in `suitecloud.config.js` already runs `npx --no-install tsc`; `ns-validate` may still pick a global `tsc`, so put `node_modules/.bin` first on `PATH` when running it.
 - **Root-level JS in `src/FileCabinet/SuiteScripts/` is the deliberate exception.** Pre-SDF native JavaScript, hand-edited and deployed as-is. The orphan-cleanup script preserves them.
 - `legacy/` is outside the SDF deploy scope. Do not move files from `legacy/` into `src/FileCabinet/SuiteScripts/` without confirming the file is still active in NetSuite.
 
@@ -61,7 +61,7 @@ Pre-SDF root JS used type-in-middle (`cen_jlo_ue_invoice_tax`); leave those alon
 ## Commands
 
 ```bash
-tsc                            # compile
+npx tsc                        # compile (project TypeScript; global TS 7 drops AMD)
 npm test                       # all tests with coverage
 npm run test:unit              # unit tests only
 npm test -- path/to/test       # one test file

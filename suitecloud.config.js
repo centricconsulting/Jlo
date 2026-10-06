@@ -26,7 +26,8 @@ module.exports = {
 				// 2. Compile TypeScript
 				try {
 					console.log('Compiling TypeScript...');
-					const { stdout, stderr } = await execAsync('tsc');
+					// The project's TypeScript, not a global one: TypeScript 7 rejects module: amd.
+					const { stdout, stderr } = await execAsync('npx --no-install tsc');
 					if (stderr) {
 						console.error('TypeScript compilation warnings/errors:', stderr);
 					}
