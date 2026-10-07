@@ -175,10 +175,10 @@
 	<th align="right" colspan="4">${item.amount@label}</th>
 	</tr>
 </thead>
-</#if><tr>
+</#if><#assign assemblyCode = item.assembly!""><tr>
 	<td align="center" colspan="2" line-height="150%">${item.linenumber}</td>
 	<td align="center" line-height="150%" style="width: 54px;">${item.quantity}</td>
-	<td colspan="10" style="width: 441px;"><span class="itemname">${item.item}</span><br />${item.description}</td>
+	<td colspan="10" style="width: 441px;"><span class="itemname">${item.item}</span><#if assemblyCode?has_content><br />Assembly: ${assemblyCode}</#if><br />${item.description}</td>
 	<td colspan="3">${item.units}</td>
 	<!-- td align="right" colspan="4">${item.expectedreceiptdate}</td -->
     <td align="right" colspan="4">${record.custbody_cen_bodyfield_shipby}</td>
@@ -218,13 +218,14 @@
 <#if record.item?has_content>
 <#list record.item as item>
 <#assign jsonText = item.custcol_bom_components>
+<#assign assemblyCode = item.assembly!"">
 <#if jsonText?has_content>
 <#assign jsonData = jsonText?eval>
 <table class="itemtable" style="width: 100%;" page-break-before="always">
  
 
         <tr>
-<th colspan="2" align="left">Item: ${item.item}</th>
+<th colspan="2" align="left">Item: ${item.item}<#if assemblyCode?has_content><br />(Assembly: ${assemblyCode})</#if></th>
 <th colspan="7">Description</th>
 <th align="center" colspan="2">Quantity</th>
 <th align="right" colspan="2">Units</th>
