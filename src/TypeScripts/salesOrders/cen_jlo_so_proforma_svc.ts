@@ -11,7 +11,7 @@ import log = require('N/log');
 import record = require('N/record');
 import render = require('N/render');
 import runtime = require('N/runtime');
-import { buildCompanyHeader, CompanyHeader, parseLogoUrl, proFormaFileName } from './models/proForma';
+import { buildCompanyHeader, CompanyHeader, logoDataUri, logoFileId, parseLogoUrl, proFormaFileName } from './models/proForma';
 
 const TEMPLATE_SCRIPT_ID = 'CUSTTMPL_CEN_JLO_SO_PROFORMA';
 const LOGO_URL_PARAM = 'custscript_cen_jlo_proforma_logo_url';
@@ -33,12 +33,15 @@ export function renderProForma(salesOrderId: number): file.File {
 /**
  * A custom render has no companyInformation.logoUrl or addressText (native printing computes those).
  * Company Information needs the Set Up Company permission, so the header avoids it: the address comes
- * from the order's subsidiary (Subsidiaries view, held by the roles that print), and the logo URL from
- * a company preference set per account, which needs no permission to read.
+ * from the order's subsidiary (Subsidiaries view, held by the roles that print), and the logo from
+ * a company preference set per account, which needs no permission to read. The logo is embedded as a
+ * data URI (Documents and Files view) because the renderer's fetch of its URL failed under a non-admin role;
+ * the URL itself is the fallback.
  * NetSuite does not escape custom data in the template; the template applies ?html to these values.
  */
 function loadCompanyHeader(salesOrder: record.Record): CompanyHeader {
   const logoUrl = parseLogoUrl(runtime.getCurrentScript().getParameter({ name: LOGO_URL_PARAM }));
+  const logo = embedLogo(logoUrl) || logoUrl;
   let name = String(salesOrder.getText({ fieldId: 'subsidiary' }) || '');
   let addressText = '';
   try {
@@ -48,5 +51,20 @@ function loadCompanyHeader(salesOrder: record.Record): CompanyHeader {
   } catch (e) {
     log.error({ title: 'Pro forma subsidiary address unavailable', details: e });
   }
-  return buildCompanyHeader({ name, addressText, logoUrl });
+  return buildCompanyHeader({ name, addressText, logoUrl: logo });
+}
+
+/** The logo file's contents as a data URI, or '' when the URL names no file or the file cannot be read. */
+function embedLogo(logoUrl: string): string {
+  const id = logoFileId(logoUrl);
+  if (!id) {
+    return '';
+  }
+  try {
+    const logoFile = file.load({ id });
+    return logoDataUri(String(logoFile.fileType), logoFile.getContents());
+  } catch (e) {
+    log.error({ title: 'Pro forma logo file unavailable', details: e });
+    return '';
+  }
 }

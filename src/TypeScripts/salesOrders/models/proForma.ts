@@ -33,10 +33,13 @@ export function proFormaFileName(tranId: string): string {
   return `ProForma_${safe || 'SalesOrder'}.pdf`;
 }
 
-/** Splits the company's address block into lines; falls back to the name when there is no address. */
+/**
+ * Splits the company's address block into lines; falls back to the name when there is no address.
+ * The subsidiary returns the block with newlines for some roles and `<br>` tags for others, so both separate lines.
+ */
 export function buildCompanyHeader(input: CompanyHeaderInput): CompanyHeader {
   const addressLines = input.addressText
-    .split(/\r?\n/)
+    .split(/\r?\n|<br\s*\/?>/i)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   return {
@@ -50,6 +53,27 @@ export function buildCompanyHeader(input: CompanyHeaderInput): CompanyHeader {
 export function parseLogoUrl(raw: unknown): string {
   const text = typeof raw === 'string' ? raw.trim() : '';
   return /^https?:\/\/\S+$/i.test(text) ? text : '';
+}
+
+/** The File Cabinet id in a media URL's `id=` parameter, or 0 when there is none. */
+export function logoFileId(logoUrl: string): number {
+  const match = /[?&]id=(\d+)(?:&|$)/.exec(logoUrl);
+  return match ? Number(match[1]) : 0;
+}
+
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  PNGIMAGE: 'image/png',
+  JPGIMAGE: 'image/jpeg',
+  GIFIMAGE: 'image/gif',
+};
+
+/**
+ * A data URI for an image file's base64 contents, so the PDF carries the logo instead of fetching it
+ * (a fetch under a non-admin role printed a placeholder). '' for a file type that is not an image.
+ */
+export function logoDataUri(fileType: string, base64Contents: string): string {
+  const mime = IMAGE_MIME_TYPES[fileType];
+  return mime && base64Contents ? `data:${mime};base64,${base64Contents}` : '';
 }
 
 /** Escapes a value for a double-quoted HTML attribute. */
