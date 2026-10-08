@@ -46,6 +46,12 @@ export function buildCompanyHeader(input: CompanyHeaderInput): CompanyHeader {
   };
 }
 
+/** Keeps the logo parameter only when it is an absolute http(s) URL; anything else prints no logo. */
+export function parseLogoUrl(raw: unknown): string {
+  const text = typeof raw === 'string' ? raw.trim() : '';
+  return /^https?:\/\/\S+$/i.test(text) ? text : '';
+}
+
 /** Escapes a value for a double-quoted HTML attribute. */
 export function htmlAttr(value: string): string {
   return value

@@ -3,13 +3,8 @@
     <path>~/FileCabinet/SuiteScripts/salesOrders/models/proForma.js</path>
     <path>~/FileCabinet/SuiteScripts/salesOrders/cen_jlo_so_proforma_svc.js</path>
     <path>~/FileCabinet/SuiteScripts/salesOrders/cen_jlo_so_proforma_sl.js</path>
-    <path>~/FileCabinet/SuiteScripts/salesOrders/cen_jlo_so_proforma_cs.js</path>
-    <path>~/FileCabinet/SuiteScripts/salesOrders/cen_jlo_so_proforma_ue.js</path>
   </files>
   <objects>
-    <path>~/Objects/custtmpl_cen_jlo_so_proforma.xml</path>
-    <path>~/Objects/custtmpl_cen_jlo_so_proforma.template.xml</path>
     <path>~/Objects/suitelet/customscript_cen_jlo_so_proforma_sl.xml</path>
-    <path>~/Objects/usereventscript/customscript_cen_jlo_so_proforma_ue.xml</path>
   </objects>
 </deploy>

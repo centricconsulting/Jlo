@@ -9,6 +9,7 @@ define(["require", "exports"], function (require, exports) {
     exports.parseSalesOrderId = parseSalesOrderId;
     exports.proFormaFileName = proFormaFileName;
     exports.buildCompanyHeader = buildCompanyHeader;
+    exports.parseLogoUrl = parseLogoUrl;
     exports.htmlAttr = htmlAttr;
     /** Accepts only a positive integer internal id; anything else is a request error. */
     function parseSalesOrderId(raw) {
@@ -34,6 +35,11 @@ define(["require", "exports"], function (require, exports) {
             addressLines: addressLines.length > 0 ? addressLines : [input.name].filter((line) => line.length > 0),
             logoUrl: input.logoUrl,
         };
+    }
+    /** Keeps the logo parameter only when it is an absolute http(s) URL; anything else prints no logo. */
+    function parseLogoUrl(raw) {
+        const text = typeof raw === 'string' ? raw.trim() : '';
+        return /^https?:\/\/\S+$/i.test(text) ? text : '';
     }
     /** Escapes a value for a double-quoted HTML attribute. */
     function htmlAttr(value) {

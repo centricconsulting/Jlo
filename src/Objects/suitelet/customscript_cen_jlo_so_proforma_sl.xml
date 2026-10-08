@@ -7,6 +7,20 @@
   <notifyowner>T</notifyowner>
   <notifyuser>F</notifyuser>
   <scriptfile>[/SuiteScripts/salesOrders/cen_jlo_so_proforma_sl.js]</scriptfile>
+  <scriptcustomfields>
+    <scriptcustomfield scriptid="custscript_cen_jlo_proforma_logo_url">
+      <accesslevel>2</accesslevel>
+      <description>Full URL of the logo printed on the pro forma invoice. A company preference, set once per account (Setup &gt; Company &gt; General Preferences &gt; Custom Preferences), because the file URL differs between sandbox and production. Blank prints no logo.</description>
+      <displaytype>NORMAL</displaytype>
+      <fieldtype>URL</fieldtype>
+      <help>Full URL of the logo image for the pro forma invoice header, from the image file's URL in the File Cabinet (the file must be Available Without Login).</help>
+      <ismandatory>F</ismandatory>
+      <label>Pro Forma Logo URL</label>
+      <searchlevel>2</searchlevel>
+      <setting>COMPANY</setting>
+      <storevalue>T</storevalue>
+    </scriptcustomfield>
+  </scriptcustomfields>
   <scriptdeployments>
     <scriptdeployment scriptid="customdeploy_cen_jlo_so_proforma_sl">
       <allemployees>T</allemployees>
