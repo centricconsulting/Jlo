@@ -6,6 +6,8 @@ const {
 	proFormaFileName,
 	buildCompanyHeader,
 	parseLogoUrl,
+	logoFileId,
+	logoDataUri,
 	htmlAttr,
 } = require('SuiteScripts/salesOrders/models/proForma');
 
@@ -52,6 +54,21 @@ describe('buildCompanyHeader', () => {
 		});
 	});
 
+	it('splits on <br> tags as well, which some roles get instead of newlines', () => {
+		const header = buildCompanyHeader({
+			name: 'JLO Beauty & Lifestyle, LLC',
+			addressText: 'JLO Beauty & Lifestyle, LLC<br>100 N Pacific Coast Hwy<BR/>Suite 1600<br />El Segundo CA 90245<br>United States',
+			logoUrl: '',
+		});
+		expect(header.addressLines).toEqual([
+			'JLO Beauty & Lifestyle, LLC',
+			'100 N Pacific Coast Hwy',
+			'Suite 1600',
+			'El Segundo CA 90245',
+			'United States',
+		]);
+	});
+
 	it('uses the company name when there is no address', () => {
 		expect(buildCompanyHeader({ name: 'JLO', addressText: '', logoUrl: '' }).addressLines).toEqual(['JLO']);
 	});
@@ -73,6 +90,31 @@ describe('parseLogoUrl', () => {
 			expect(parseLogoUrl(raw)).toBe('');
 		},
 	);
+});
+
+describe('logoFileId', () => {
+	it('reads the id parameter from a media URL', () => {
+		expect(logoFileId('https://6966778.app.netsuite.com/core/media/media.nl?id=8115&c=6966778&h=abc')).toBe(8115);
+	});
+
+	it.each(['', 'https://example.test/logo.png', 'https://x.test/media.nl?fid=8115', 'https://x.test/media.nl?id=abc'])(
+		'returns 0 for %p',
+		(url) => {
+			expect(logoFileId(url)).toBe(0);
+		},
+	);
+});
+
+describe('logoDataUri', () => {
+	it('builds a data URI for an image file', () => {
+		expect(logoDataUri('PNGIMAGE', 'iVBORw0KGgo=')).toBe('data:image/png;base64,iVBORw0KGgo=');
+		expect(logoDataUri('JPGIMAGE', '/9j/4AAQ')).toBe('data:image/jpeg;base64,/9j/4AAQ');
+	});
+
+	it('returns nothing for a file that is not an image, or has no contents', () => {
+		expect(logoDataUri('PDF', 'JVBERi0=')).toBe('');
+		expect(logoDataUri('PNGIMAGE', '')).toBe('');
+	});
 });
 
 describe('htmlAttr', () => {

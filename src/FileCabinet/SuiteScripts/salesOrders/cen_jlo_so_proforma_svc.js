@@ -5,7 +5,7 @@
  * @NAuthor cary.pruitt@centricconsulting.com
  * @NDescription Renders a sales order on the Pro Forma Invoice template (custtmpl_cen_jlo_so_proforma) as a PDF.
  */
-define(["require", "exports", "N/log", "N/record", "N/render", "N/runtime", "./models/proForma"], function (require, exports, log, record, render, runtime, proForma_1) {
+define(["require", "exports", "N/file", "N/log", "N/record", "N/render", "N/runtime", "./models/proForma"], function (require, exports, file, log, record, render, runtime, proForma_1) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.renderProForma = renderProForma;
@@ -25,12 +25,15 @@ define(["require", "exports", "N/log", "N/record", "N/render", "N/runtime", "./m
     /**
      * A custom render has no companyInformation.logoUrl or addressText (native printing computes those).
      * Company Information needs the Set Up Company permission, so the header avoids it: the address comes
-     * from the order's subsidiary (Subsidiaries view, held by the roles that print), and the logo URL from
-     * a company preference set per account, which needs no permission to read.
+     * from the order's subsidiary (Subsidiaries view, held by the roles that print), and the logo from
+     * a company preference set per account, which needs no permission to read. The logo is embedded as a
+     * data URI (Documents and Files view) because the renderer's fetch of its URL failed under a non-admin role;
+     * the URL itself is the fallback.
      * NetSuite does not escape custom data in the template; the template applies ?html to these values.
      */
     function loadCompanyHeader(salesOrder) {
         const logoUrl = (0, proForma_1.parseLogoUrl)(runtime.getCurrentScript().getParameter({ name: LOGO_URL_PARAM }));
+        const logo = embedLogo(logoUrl) || logoUrl;
         let name = String(salesOrder.getText({ fieldId: 'subsidiary' }) || '');
         let addressText = '';
         try {
@@ -41,6 +44,21 @@ define(["require", "exports", "N/log", "N/record", "N/render", "N/runtime", "./m
         catch (e) {
             log.error({ title: 'Pro forma subsidiary address unavailable', details: e });
         }
-        return (0, proForma_1.buildCompanyHeader)({ name, addressText, logoUrl });
+        return (0, proForma_1.buildCompanyHeader)({ name, addressText, logoUrl: logo });
+    }
+    /** The logo file's contents as a data URI, or '' when the URL names no file or the file cannot be read. */
+    function embedLogo(logoUrl) {
+        const id = (0, proForma_1.logoFileId)(logoUrl);
+        if (!id) {
+            return '';
+        }
+        try {
+            const logoFile = file.load({ id });
+            return (0, proForma_1.logoDataUri)(String(logoFile.fileType), logoFile.getContents());
+        }
+        catch (e) {
+            log.error({ title: 'Pro forma logo file unavailable', details: e });
+            return '';
+        }
     }
 });
