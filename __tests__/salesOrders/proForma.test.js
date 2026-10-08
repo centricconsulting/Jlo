@@ -5,6 +5,7 @@ const {
 	parseSalesOrderId,
 	proFormaFileName,
 	buildCompanyHeader,
+	parseLogoUrl,
 	htmlAttr,
 } = require('SuiteScripts/salesOrders/models/proForma');
 
@@ -58,6 +59,20 @@ describe('buildCompanyHeader', () => {
 	it('returns no lines when there is neither address nor name', () => {
 		expect(buildCompanyHeader({ name: '', addressText: ' \n ', logoUrl: '' }).addressLines).toEqual([]);
 	});
+});
+
+describe('parseLogoUrl', () => {
+	it('keeps an absolute https URL, trimmed', () => {
+		const url = 'https://6966778-sb1.app.netsuite.com/core/media/media.nl?id=8115&c=6966778_SB1&h=abc';
+		expect(parseLogoUrl(` ${url} `)).toBe(url);
+	});
+
+	it.each([undefined, null, '', 'media.nl?id=8115', '/core/media/media.nl?id=8115', 'javascript:alert(1)', 'https://a b', 42])(
+		'prints no logo for %p',
+		(raw) => {
+			expect(parseLogoUrl(raw)).toBe('');
+		},
+	);
 });
 
 describe('htmlAttr', () => {

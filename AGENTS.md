@@ -73,7 +73,7 @@ SKIP_TESTS=true suitecloud project:deploy
 ## Domains
 
 - `journalEntries/`: JE reversal-date clear-on-copy (`cen_jlo_je_reversal_ue`).
-- `salesOrders/`: Print Pro Forma button on sales orders for prepayment customers. `cen_jlo_so_proforma_ue` adds the button in view mode, `_cs` opens `_sl`, which renders the order on `custtmpl_cen_jlo_so_proforma` through `_svc`; pure helpers in `models/proForma`.
+- `salesOrders/`: Print Pro Forma button on sales orders for prepayment customers. `cen_jlo_so_proforma_ue` adds the button in view mode, `_cs` opens `_sl`, which renders the order on `custtmpl_cen_jlo_so_proforma` through `_svc`; pure helpers in `models/proForma`. The header avoids Company Information (it needs Set Up Company, which printing roles lack): address from the order's subsidiary, logo from the company preference `custscript_cen_jlo_proforma_logo_url` (Setup > Company > General Preferences > Custom Preferences), set by hand once per account because the file URL differs between sandbox and production.
 - Root `SuiteScripts/`: pre-SDF native JS (SO/invoice tax, class updates, PO assembly item description, MR data fixes).
 - `src/Objects/custtmpl_jlb_po_template`: printed PO advanced PDF template.
 
