@@ -1,10 +1,6 @@
 <deploy>
-  <files>
-    <path>~/FileCabinet/SuiteScripts/salesOrders/models/proForma.js</path>
-    <path>~/FileCabinet/SuiteScripts/salesOrders/cen_jlo_so_proforma_svc.js</path>
-    <path>~/FileCabinet/SuiteScripts/salesOrders/cen_jlo_so_proforma_sl.js</path>
-  </files>
   <objects>
-    <path>~/Objects/suitelet/customscript_cen_jlo_so_proforma_sl.xml</path>
+    <path>~/Objects/custtmpl_jlb_po_template.xml</path>
+    <path>~/Objects/custtmpl_jlb_po_template.template.xml</path>
   </objects>
 </deploy>
