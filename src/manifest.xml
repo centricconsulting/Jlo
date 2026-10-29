@@ -6,5 +6,12 @@
       <feature required="true">ADVANCEDPRINTING</feature>
       <feature required="true">SERVERSIDESCRIPTING</feature>
     </features>
+    <objects>
+      <object>customrole_jlo_hb_std_accounting_mgr</object>
+      <object>customrole_jlb_accounting_staff</object>
+      <object>customrole_jlb_director_accounting</object>
+      <object>customrole_jlb_director_finance</object>
+      <object>customrole_jlb_cfo</object>
+    </objects>
   </dependencies>
 </manifest>
