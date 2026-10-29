@@ -1,0 +1,23 @@
+<suitelet scriptid="customscript_cen_jlo_gl_trial_balance_sl">
+  <description>Trial balance with a column per subsidiary plus Consolidated, for a chosen posting period, on screen or as CSV.</description>
+  <isinactive>F</isinactive>
+  <name>JLo - Trial Balance by Subsidiary</name>
+  <notifyadmins>F</notifyadmins>
+  <notifyemails></notifyemails>
+  <notifyowner>T</notifyowner>
+  <notifyuser>F</notifyuser>
+  <scriptfile>[/SuiteScripts/generalLedger/cen_jlo_gl_trial_balance_sl.js]</scriptfile>
+  <scriptdeployments>
+    <scriptdeployment scriptid="customdeploy_cen_jlo_gl_trial_balance_sl">
+      <allemployees>F</allemployees>
+      <allroles>F</allroles>
+      <!-- Accounting Manager (1021), Accounting Staff (1143), Controller, Accounting (1144), Director, Finance (1145), CFO (1141), plus Administrator; matched by role name in sandbox 2026-10-29. -->
+      <audslctrole>[scriptid=customrole_jlo_hb_std_accounting_mgr]|[scriptid=customrole_jlb_accounting_staff]|[scriptid=customrole_jlb_director_accounting]|[scriptid=customrole_jlb_director_finance]|[scriptid=customrole_jlb_cfo]|ADMINISTRATOR</audslctrole>
+      <isdeployed>T</isdeployed>
+      <isonline>F</isonline>
+      <loglevel>ERROR</loglevel>
+      <status>RELEASED</status>
+      <title>JLo - Trial Balance by Subsidiary</title>
+    </scriptdeployment>
+  </scriptdeployments>
+</suitelet>

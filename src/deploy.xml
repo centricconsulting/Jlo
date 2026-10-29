@@ -1,6 +1,10 @@
 <deploy>
+  <files>
+    <path>~/FileCabinet/SuiteScripts/generalLedger/models/trialBalance.js</path>
+    <path>~/FileCabinet/SuiteScripts/generalLedger/cen_jlo_gl_trial_balance_svc.js</path>
+    <path>~/FileCabinet/SuiteScripts/generalLedger/cen_jlo_gl_trial_balance_sl.js</path>
+  </files>
   <objects>
-    <path>~/Objects/custtmpl_jlb_po_template.xml</path>
-    <path>~/Objects/custtmpl_jlb_po_template.template.xml</path>
+    <path>~/Objects/suitelet/customscript_cen_jlo_gl_trial_balance_sl.xml</path>
   </objects>
 </deploy>
