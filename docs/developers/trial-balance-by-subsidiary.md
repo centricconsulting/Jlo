@@ -59,7 +59,7 @@ Guards, so a wrong number never looks right:
 - Columns: one per subsidiary (parent first, then others by name, elimination last), then Consolidated. A totals row ends the table.
 - Export CSV returns the same table as a file.
 - Access: the deployment's audience is the Accounting and Finance roles above plus Administrator. It runs as the user's role. All five roles have Find Transaction, Accounts and Trial Balance permissions and no subsidiary restriction (sandbox, 2026-10-29). CFO (1141) has no Subsidiaries list permission, which the subsidiary lookup may need; confirm with a CFO user.
-- No menu link yet. The audience roles use the Accounting Center, and the SDF link category for its Reports menu isn't confirmed (`BASICREPORTSCUSTOM` is Classic Center only). Users open it from a shortcut or the deployment URL.
+- Menu link: Financial > Reports > Trial Balance by Subsidiary in the Accounting Center (`ACCOUNTCENTERFINANCIALREPORTS`), which every audience role uses. Administrator is on the Classic Center and opens it from the deployment URL.
 
 ## Verification
 

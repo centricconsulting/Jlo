@@ -18,6 +18,13 @@
       <loglevel>ERROR</loglevel>
       <status>RELEASED</status>
       <title>JLo - Trial Balance by Subsidiary</title>
+      <!-- Accounting Center > Financial > Reports; every role in the audience uses the Accounting Center. -->
+      <links>
+        <link>
+          <linkcategory>ACCOUNTCENTERFINANCIALREPORTS</linkcategory>
+          <linklabel>Trial Balance by Subsidiary</linklabel>
+        </link>
+      </links>
     </scriptdeployment>
   </scriptdeployments>
 </suitelet>
