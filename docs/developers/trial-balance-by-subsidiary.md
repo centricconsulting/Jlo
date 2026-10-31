@@ -59,7 +59,7 @@ Guards, so a wrong number never looks right:
 - Columns: one per subsidiary (parent first, then others by name, elimination last), then Consolidated. A totals row ends the table.
 - Export CSV returns the same table as a file.
 - Access: the deployment's audience is the Accounting and Finance roles above plus Administrator. It runs as the user's role. All five roles have Find Transaction, Accounts and Trial Balance permissions and no subsidiary restriction (sandbox, 2026-10-29). CFO (1141) has no Subsidiaries list permission, which the subsidiary lookup may need; confirm with a CFO user.
-- Menu link: Financial > Reports > Trial Balance by Subsidiary in the Accounting Center (`ACCOUNTCENTERFINANCIALREPORTS`), which every audience role uses. Administrator is on the Classic Center and opens it from the deployment URL.
+- Menu link: Financial > Reports > Trial Balance by Subsidiary in the Accounting Center (`ACCOUNTCENTERFINANCIALREPORTS`), which every audience role uses. Administrator is on the Classic Center and opens it from the deployment URL. Its place in the menu, right after Trial Balance, was set by hand on the deployment record (Links > Insert Before: Post Closing Trial Balance), because SDF doesn't carry Insert Before. If a redeploy drops it to the bottom of the menu, set it again there.
 
 ## Verification
 
